@@ -1,6 +1,7 @@
 import { WordWaveEngine, WordWaveOptions } from 'word-wave';
 
 const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
+const modeSelect = document.getElementById('opt-mode') as HTMLSelectElement;
 
 // Slider options: id suffix → config key + parser
 const sliders: Record<string, keyof WordWaveOptions> = {
@@ -24,6 +25,7 @@ function getOptions(): Partial<WordWaveOptions> {
       .map((w) => w.trim())
       .filter(Boolean),
     font: fontInput.value,
+    mode: modeSelect.value as 'character' | 'word',
   };
 
   for (const [id, key] of Object.entries(sliders)) {
@@ -62,6 +64,9 @@ for (const id of ['words', 'font']) {
   });
   input.addEventListener('blur', () => recreate());
 }
+
+// Wire up mode select — recreate immediately on change
+modeSelect.addEventListener('change', recreate);
 
 // Collapse/expand toggle
 const toggleBtn = document.getElementById('toggle-btn') as HTMLButtonElement;

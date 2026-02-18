@@ -121,4 +121,28 @@ describe('WordWaveEngine', () => {
     engine.destroy();
     expect(() => engine.resize()).not.toThrow();
   });
+
+  it('accepts mode: "word" option', () => {
+    expect(() => {
+      engine = new WordWaveEngine(canvas, { mode: 'word' });
+    }).not.toThrow();
+  });
+
+  it('word mode skips atlas building', () => {
+    engine = new WordWaveEngine(canvas, { mode: 'word' });
+    // In word mode, buildAtlas() is never called — so no font-metrics warning fires.
+    const atlasWarnings = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('font metrics'),
+    );
+    expect(atlasWarnings).toHaveLength(0);
+  });
+
+  it('character mode attempts atlas building', () => {
+    engine = new WordWaveEngine(canvas);
+    // happy-dom has no 2D context, so buildAtlas() warns about font metrics.
+    const atlasWarnings = warnSpy.mock.calls.filter(
+      (args) => typeof args[0] === 'string' && args[0].includes('font metrics'),
+    );
+    expect(atlasWarnings.length).toBeGreaterThan(0);
+  });
 });

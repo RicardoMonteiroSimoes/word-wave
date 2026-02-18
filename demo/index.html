@@ -131,8 +131,22 @@
         color: inherit;
       }
 
+      .control-group select {
+        width: 100%;
+        padding: 4px 8px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        background: transparent;
+        color: inherit;
+      }
+
       @media (prefers-color-scheme: dark) {
         .control-group input[type='text'] {
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        .control-group select {
           border-color: rgba(255, 255, 255, 0.15);
         }
       }
@@ -149,6 +163,13 @@
         <button id="toggle-btn">collapse</button>
       </h2>
       <div id="controls-body">
+        <div class="control-group">
+          <label>mode</label>
+          <select id="opt-mode">
+            <option value="character" selected>character</option>
+            <option value="word">word</option>
+          </select>
+        </div>
         <div class="control-group">
           <label>words</label>
           <input
