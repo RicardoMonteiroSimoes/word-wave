@@ -88,55 +88,8 @@ export interface WordWaveOptions {
   pauseOffScreen: boolean;
 }
 
-/** A curated set of realistic feature-flag names for use as default words. */
-export const DEFAULT_WORDS: readonly string[] = [
-  // Tier & monetization
-  'premium_tier',
-  'free_trial_enabled',
-  'early_access',
-  'enterprise_sso',
-  'usage_limits',
-  // UI/UX experiments
-  'dark_mode',
-  'new_dashboard',
-  'sidebar_v2',
-  'compact_view',
-  'onboarding_flow',
-  'redesigned_checkout',
-  // Feature rollouts
-  'ai_assistant',
-  'smart_search',
-  'export_to_csv',
-  'bulk_actions',
-  'real_time_sync',
-  'offline_mode',
-  'drag_and_drop',
-  // Regional & localization
-  'eu_data_residency',
-  'multi_currency',
-  'rtl_support',
-  'gdpr_consent_v2',
-  // Performance & infrastructure
-  'edge_caching',
-  'lazy_load_images',
-  'websocket_enabled',
-  'batch_processing',
-  // Integrations
-  'slack_integration',
-  'github_sync',
-  'zapier_webhooks',
-  'sso_google',
-  // Beta features
-  'beta_analytics',
-  'experimental_api',
-  'canary_release',
-  'shadow_mode',
-  // A/B tests
-  'cta_variant_b',
-  'pricing_test_2024',
-  'signup_simplified',
-  'checkout_one_click',
-];
+/** Fallback words shown when no words are supplied. */
+export const DEFAULT_WORDS: readonly string[] = ['No', 'Words', 'Supplied!'];
 
 // ── Internal types ───────────────────────────────────────────────────────────
 
@@ -254,7 +207,11 @@ export class WordWaveEngine {
    */
   constructor(canvas: HTMLCanvasElement, options?: Partial<WordWaveOptions>) {
     this.canvas = canvas;
-    this.config = { ...DEFAULTS, ...options };
+    this.config = {
+      ...DEFAULTS,
+      ...options,
+      words: [...(options?.words ?? DEFAULTS.words)],
+    };
     this.init();
   }
 
@@ -401,7 +358,8 @@ export class WordWaveEngine {
 
     // Measure font metrics
     const tmp = document.createElement('canvas');
-    const tmpCtx = tmp.getContext('2d')!;
+    const tmpCtx = tmp.getContext('2d');
+    if (!tmpCtx) return;
     tmpCtx.font = this.config.font;
 
     const ref = tmpCtx.measureText('Mg');
@@ -428,7 +386,8 @@ export class WordWaveEngine {
     this.atlasHalfHeight = cellHeight / 2;
     this.atlasPhysHeight = cellHeight * dpr;
 
-    const ctx = this.atlas.getContext('2d')!;
+    const ctx = this.atlas.getContext('2d');
+    if (!ctx) return;
     ctx.scale(dpr, dpr);
     ctx.font = this.config.font;
     ctx.textAlign = 'center';
