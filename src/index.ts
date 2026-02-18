@@ -304,7 +304,11 @@ export class WordWaveEngine {
 
             if (!wasVisible && entry.isIntersecting) {
               this.startAnimationLoop();
-            } else if (wasVisible && !entry.isIntersecting && this.animationFrameId !== null) {
+            } else if (
+              wasVisible &&
+              !entry.isIntersecting &&
+              this.animationFrameId !== null
+            ) {
               cancelAnimationFrame(this.animationFrameId);
               this.animationFrameId = null;
             }
@@ -417,9 +421,7 @@ export class WordWaveEngine {
     if (!parent) return;
     const rect = parent.getBoundingClientRect();
 
-    const { spacingX, spacingY, words } = this.config;
-    const cols = Math.ceil(rect.width / spacingX) + 2;
-    const rows = Math.ceil(rect.height / spacingY) + 2;
+    const { spacingX, spacingY } = this.config;
 
     ctx.font = this.config.font;
 
@@ -431,39 +433,26 @@ export class WordWaveEngine {
     this.gridRows = Math.ceil((rect.height + 2 * margin) / NOISE_GRID_CELL) + 1;
     this.noiseGrid = new Float32Array(this.gridCols * this.gridRows);
 
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const offsetX = row % 2 === 0 ? 0 : spacingX / 2;
-        const wordIndex = (row * cols + col) % words.length;
-        const word = words[wordIndex];
+    this.iterateWordGrid(ctx, rect, (char, centerX, y, row, col) => {
+      const glyph = this.glyphs.get(char);
+      if (!glyph) return;
 
-        const wordWidth = ctx.measureText(word).width;
-        const wordStartX = col * spacingX + offsetX - spacingX - wordWidth / 2;
-        const wordY = row * spacingY - spacingY;
+      const depthNoise = this.noise3D(col * 0.1, row * 0.1, 0);
+      const isDark =
+        this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
+      const baseOpacity = isDark
+        ? 0.08 + (depthNoise + 1) * 0.04
+        : 0.2 + (depthNoise + 1) * 0.08;
 
-        const depthNoise = this.noise3D(col * 0.1, row * 0.1, 0);
-        const isDark = this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
-        const baseOpacity = isDark
-          ? 0.08 + (depthNoise + 1) * 0.04
-          : 0.20 + (depthNoise + 1) * 0.08;
-
-        let charX = wordStartX;
-        for (const char of word) {
-          const charWidth = ctx.measureText(char).width;
-          const glyph = this.glyphs.get(char);
-          if (!glyph) continue; // skip if atlas doesn't contain this character
-          this.particles.push({
-            glyph,
-            baseX: charX + charWidth / 2,
-            baseY: wordY,
-            renderX: 0,
-            renderY: 0,
-            opacity: baseOpacity,
-          });
-          charX += charWidth;
-        }
-      }
-    }
+      this.particles.push({
+        glyph,
+        baseX: centerX,
+        baseY: y,
+        renderX: 0,
+        renderY: 0,
+        opacity: baseOpacity,
+      });
+    });
 
     // Sort by opacity to minimize globalAlpha state changes in the render loop
     this.particles.sort((a, b) => a.opacity - b.opacity);
@@ -483,10 +472,13 @@ export class WordWaveEngine {
     const fy = gy - gy0;
 
     const i = gy0 * this.gridCols + gx0;
-    const top = this.noiseGrid[i] + (this.noiseGrid[i + 1] - this.noiseGrid[i]) * fx;
+    const top =
+      this.noiseGrid[i] + (this.noiseGrid[i + 1] - this.noiseGrid[i]) * fx;
     const bottom =
       this.noiseGrid[i + this.gridCols] +
-      (this.noiseGrid[i + this.gridCols + 1] - this.noiseGrid[i + this.gridCols]) * fx;
+      (this.noiseGrid[i + this.gridCols + 1] -
+        this.noiseGrid[i + this.gridCols]) *
+        fx;
     return top + (bottom - top) * fy;
   }
 
@@ -503,7 +495,8 @@ export class WordWaveEngine {
     const atlasPhysH = this.atlasPhysHeight;
     const cellH = this.atlasCellHeight;
     const halfH = this.atlasHalfHeight;
-    const { frequency, amplitude, speed, propagation, waveAmplitude } = this.config;
+    const { frequency, amplitude, speed, propagation, waveAmplitude } =
+      this.config;
 
     const dirRad = (this.config.direction * Math.PI) / 180;
     const dirCos = Math.cos(dirRad);
@@ -584,15 +577,40 @@ export class WordWaveEngine {
     const rect = parent.getBoundingClientRect();
 
     const color = this.resolveColor();
-    const isDark = this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
+    const isDark =
+      this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
     const staticOpacity = isDark ? 0.08 : 0.28;
-    const { spacingX, spacingY, words, font } = this.config;
-    const cols = Math.ceil(rect.width / spacingX) + 2;
-    const rows = Math.ceil(rect.height / spacingY) + 2;
 
-    ctx.font = font;
+    ctx.font = this.config.font;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(${color}, ${staticOpacity})`;
+
+    this.iterateWordGrid(ctx, rect, (char, centerX, y) => {
+      ctx.fillText(char, centerX, y);
+    });
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  /**
+   * Iterate over every character position in the word grid, calling `onChar`
+   * for each character with its center-x, y position, and grid coordinates.
+   */
+  private iterateWordGrid(
+    ctx: CanvasRenderingContext2D,
+    rect: DOMRect,
+    onChar: (
+      char: string,
+      centerX: number,
+      y: number,
+      row: number,
+      col: number,
+    ) => void,
+  ): void {
+    const { spacingX, spacingY, words } = this.config;
+    const cols = Math.ceil(rect.width / spacingX) + 2;
+    const rows = Math.ceil(rect.height / spacingY) + 2;
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
@@ -607,15 +625,12 @@ export class WordWaveEngine {
         let charX = wordStartX;
         for (const char of word) {
           const charWidth = ctx.measureText(char).width;
-          ctx.fillStyle = `rgba(${color}, ${staticOpacity})`;
-          ctx.fillText(char, charX + charWidth / 2, wordY);
+          onChar(char, charX + charWidth / 2, wordY, row, col);
           charX += charWidth;
         }
       }
     }
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   /** Resolve the text color, respecting auto-detection if configured. */
   private resolveColor(): string {
@@ -628,13 +643,15 @@ export class WordWaveEngine {
 
   private prefersReducedMotion(): boolean {
     return (
-      typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
     );
   }
 
   private prefersColorSchemeDark(): boolean {
     return (
-      typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
     );
   }
 }

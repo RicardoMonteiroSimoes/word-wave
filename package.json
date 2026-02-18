@@ -17,6 +17,13 @@
   ],
   "scripts": {
     "build": "tsc",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "format": "prettier --write src/",
+    "format:check": "prettier --check src/",
+    "knip": "knip",
+    "duplication": "jscpd src/",
+    "check": "tsc --noEmit && eslint src/ && prettier --check src/ && knip && jscpd src/",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -37,6 +44,13 @@
     "simplex-noise": "^4.0.3"
   },
   "devDependencies": {
-    "typescript": "~5.9.2"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "jscpd": "^4.0.8",
+    "knip": "^5.84.0",
+    "prettier": "^3.8.1",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "^8.56.0"
   }
 }
