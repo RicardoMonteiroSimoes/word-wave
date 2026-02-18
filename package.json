@@ -1,0 +1,42 @@
+{
+  "name": "word-wave",
+  "version": "0.1.0",
+  "description": "High-performance canvas text wave animation driven by simplex noise",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "canvas",
+    "animation",
+    "wave",
+    "text",
+    "particles",
+    "simplex-noise"
+  ],
+  "author": "Ricardo Daniel Monteiro Simões",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RicardoMonteiroSimoes/word-wave.git"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2"
+  }
+}
