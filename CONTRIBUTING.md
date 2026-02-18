@@ -57,6 +57,7 @@ This runs the full pipeline in sequence:
 | `prettier --check` | Formatting                                     |
 | `knip`             | Unused exports, files, and dependencies        |
 | `jscpd`            | Code duplication                               |
+| `vitest run`       | Unit tests                                     |
 
 ### Individual commands
 
@@ -68,6 +69,14 @@ npm run format:check  # check formatting without writing
 npm run knip          # dead code and dependency audit
 npm run duplication   # copy-paste detection
 ```
+
+## Testing
+
+```sh
+npm test
+```
+
+Runs the vitest test suite. Tests live alongside source files as `*.test.ts` and are also included in `npm run check`.
 
 ## Deployment
 
