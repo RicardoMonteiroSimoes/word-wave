@@ -177,6 +177,7 @@ export class WordWaveEngine {
   private time = 0;
   private isVisible = false;
   private destroyed = false;
+  private dpr = 1;
 
   // Noise grid (filled each frame)
   private noiseGrid = new Float32Array(0);
@@ -201,6 +202,9 @@ export class WordWaveEngine {
    *
    * The canvas must be inside a positioned parent element — the engine sizes
    * itself to fill `canvas.parentElement`.
+   *
+   * Options are read once at construction. To update options on a live
+   * engine, call {@link destroy} and create a new instance.
    *
    * @param canvas  The `<canvas>` element to render into.
    * @param options Partial configuration; unspecified fields use defaults.
@@ -330,6 +334,7 @@ export class WordWaveEngine {
 
   private setupCanvas(): void {
     const dpr = window.devicePixelRatio || 1;
+    this.dpr = dpr;
     const parent = this.canvas.parentElement;
     if (!parent) return;
 
@@ -351,7 +356,7 @@ export class WordWaveEngine {
    * `fillText()` — skipping font shaping and rasterization entirely.
    */
   private buildAtlas(): void {
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = this.dpr;
     const color = this.resolveColor();
 
     // Collect unique characters
@@ -363,7 +368,10 @@ export class WordWaveEngine {
     // Measure font metrics
     const tmp = document.createElement('canvas');
     const tmpCtx = tmp.getContext('2d');
-    if (!tmpCtx) return;
+    if (!tmpCtx) {
+      console.warn('word-wave: failed to acquire 2D context for font metrics');
+      return;
+    }
     tmpCtx.font = this.config.font;
 
     const ref = tmpCtx.measureText('Mg');
@@ -391,7 +399,12 @@ export class WordWaveEngine {
     this.atlasPhysHeight = cellHeight * dpr;
 
     const ctx = this.atlas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn(
+        'word-wave: failed to acquire 2D context for character atlas',
+      );
+      return;
+    }
     ctx.scale(dpr, dpr);
     ctx.font = this.config.font;
     ctx.textAlign = 'center';
@@ -415,7 +428,12 @@ export class WordWaveEngine {
   private createParticles(): void {
     this.particles = [];
     const ctx = this.canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.warn(
+        'word-wave: failed to acquire 2D context for particle creation',
+      );
+      return;
+    }
 
     const parent = this.canvas.parentElement;
     if (!parent) return;
@@ -486,10 +504,18 @@ export class WordWaveEngine {
 
   private startAnimationLoop(): void {
     const ctx = this.canvas.getContext('2d');
-    if (!ctx || !this.atlas) return;
+    if (!ctx || !this.atlas) {
+      if (!ctx)
+        console.warn('word-wave: failed to acquire 2D context for animation');
+      if (!this.atlas)
+        console.warn('word-wave: atlas not available, cannot start animation');
+      return;
+    }
     if (this.animationFrameId !== null) return;
 
-    // Capture references as locals for the hot path
+    // Capture config + references as locals for the hot path.
+    // This is why options are immutable after construction — these closures
+    // read the values set at init time and never re-check this.config.
     const canvas = this.canvas;
     const atlas = this.atlas;
     const atlasPhysH = this.atlasPhysHeight;
@@ -509,7 +535,7 @@ export class WordWaveEngine {
       }
 
       // Read CSS dimensions from the canvas element (always in sync via setupCanvas)
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = this.dpr;
       const cssW = canvas.width / dpr;
       const cssH = canvas.height / dpr;
       ctx.clearRect(0, 0, cssW, cssH);
