@@ -68,6 +68,90 @@ for (const id of ['words', 'font']) {
 // Wire up mode select — recreate immediately on change
 modeSelect.addEventListener('change', recreate);
 
+// FPS counter — separate rAF loop measuring frame-to-frame delivery rate
+const fpsDisplay = document.getElementById('fps') as HTMLSpanElement;
+const fpsChart = document.getElementById('fps-chart') as HTMLCanvasElement;
+const fpsCtx = fpsChart.getContext('2d');
+
+const frameTimes: number[] = [];
+const SAMPLE_COUNT = 30;
+const MAX_DELTA_MS = 100;
+const DISPLAY_INTERVAL = 10;
+const CHART_HISTORY = 100;
+
+const fpsHistory: number[] = [];
+let lastFrameTime = performance.now();
+let frameCount = 0;
+let detectedRefreshRate = 60;
+
+function sizeChart(): void {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = fpsChart.getBoundingClientRect();
+  fpsChart.width = rect.width * dpr;
+  fpsChart.height = rect.height * dpr;
+  fpsCtx?.scale(dpr, dpr);
+}
+sizeChart();
+new ResizeObserver(sizeChart).observe(fpsChart);
+
+function drawChart(cssW: number, cssH: number): void {
+  if (!fpsCtx || fpsHistory.length === 0) return;
+
+  fpsCtx.clearRect(0, 0, cssW, cssH);
+
+  // Scale chart to 1.2x detected refresh rate so dips are visible
+  const chartMax = detectedRefreshRate * 1.2;
+  // Color thresholds: green above 80% of refresh rate, yellow 50-80%, red below 50%
+  const greenThreshold = detectedRefreshRate * 0.8;
+  const yellowThreshold = detectedRefreshRate * 0.5;
+  const barW = cssW / CHART_HISTORY;
+  const len = fpsHistory.length;
+
+  for (let i = 0; i < len; i++) {
+    const fps = fpsHistory[i];
+    const ratio = Math.min(fps / chartMax, 1);
+    const barH = ratio * cssH;
+
+    if (fps >= greenThreshold) fpsCtx.fillStyle = 'rgba(34, 197, 94, 0.7)';
+    else if (fps >= yellowThreshold)
+      fpsCtx.fillStyle = 'rgba(234, 179, 8, 0.7)';
+    else fpsCtx.fillStyle = 'rgba(239, 68, 68, 0.7)';
+
+    fpsCtx.fillRect(i * barW, cssH - barH, barW - 0.5, barH);
+  }
+}
+
+function measureFps(): void {
+  const now = performance.now();
+  const delta = now - lastFrameTime;
+  lastFrameTime = now;
+
+  // Discard outliers from tab switches / background throttling
+  if (delta < MAX_DELTA_MS) {
+    frameTimes.push(delta);
+    if (frameTimes.length > SAMPLE_COUNT) frameTimes.shift();
+  }
+
+  // Throttle display + chart updates (~6Hz)
+  if (++frameCount % DISPLAY_INTERVAL === 0 && frameTimes.length > 0) {
+    const avg = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+    const fps = Math.round(1000 / avg);
+    fpsDisplay.textContent = `${fps} fps`;
+
+    // Track the display's refresh rate from peak observed FPS
+    if (fps > detectedRefreshRate) detectedRefreshRate = fps;
+
+    fpsHistory.push(fps);
+    if (fpsHistory.length > CHART_HISTORY) fpsHistory.shift();
+
+    const rect = fpsChart.getBoundingClientRect();
+    drawChart(rect.width, rect.height);
+  }
+
+  requestAnimationFrame(measureFps);
+}
+requestAnimationFrame(measureFps);
+
 // Collapse/expand toggle
 const toggleBtn = document.getElementById('toggle-btn') as HTMLButtonElement;
 const controlsBody = document.getElementById('controls-body') as HTMLDivElement;

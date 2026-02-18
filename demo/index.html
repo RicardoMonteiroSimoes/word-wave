@@ -74,6 +74,30 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
+        gap: 8px;
+      }
+
+      #fps {
+        font-size: 12px;
+        font-weight: 400;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.6;
+        margin-right: auto;
+      }
+
+      #fps-chart {
+        display: block;
+        width: 100%;
+        height: 24px;
+        margin-bottom: 8px;
+        border-radius: 4px;
+        background: rgba(0, 0, 0, 0.05);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #fps-chart {
+          background: rgba(255, 255, 255, 0.05);
+        }
       }
 
       #toggle-btn {
@@ -160,8 +184,10 @@
     <div id="controls">
       <h2>
         word-wave
+        <span id="fps"></span>
         <button id="toggle-btn">collapse</button>
       </h2>
+      <canvas id="fps-chart"></canvas>
       <div id="controls-body">
         <div class="control-group">
           <label>mode</label>
