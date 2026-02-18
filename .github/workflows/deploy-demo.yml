@@ -23,9 +23,10 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - run: npm run check
       - run: npm run demo:build
         env:
-          VITE_BASE: /word-wave/
+          BASE_PATH: /word-wave/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: demo/dist

@@ -12,5 +12,5 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
   },
-  base: process.env.VITE_BASE ?? '/',
+  base: process.env.BASE_PATH ?? '/',
 });

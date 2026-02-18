@@ -41,14 +41,16 @@ function recreate(): void {
   engine = new WordWaveEngine(canvas, getOptions());
 }
 
-// Wire up sliders — update display value and recreate engine on change
+// Wire up sliders — update display value and debounce engine recreation
+let debounceTimer: ReturnType<typeof setTimeout>;
 for (const id of Object.keys(sliders)) {
   const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
   const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
 
   input.addEventListener('input', () => {
     display.textContent = input.value;
-    recreate();
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(recreate, 150);
   });
 }
 
