@@ -86,6 +86,9 @@ export interface WordWaveOptions {
 
   /** Pause the animation loop when the canvas scrolls out of view. */
   pauseOffScreen: boolean;
+
+  /** Whether displacement is applied per character or per word. */
+  mode: 'character' | 'word';
 }
 
 /** Fallback words shown when no words are supplied. */
@@ -105,14 +108,25 @@ interface CharGlyph {
   cssHalfW: number;
 }
 
-interface LetterParticle {
-  glyph: CharGlyph;
+interface BaseParticle {
   baseX: number;
   baseY: number;
   renderX: number;
   renderY: number;
   opacity: number;
 }
+
+interface CharParticle extends BaseParticle {
+  kind: 'char';
+  glyph: CharGlyph;
+}
+
+interface WordParticle extends BaseParticle {
+  kind: 'word';
+  text: string;
+}
+
+type Particle = CharParticle | WordParticle;
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -138,7 +152,20 @@ const DEFAULTS: WordWaveOptions = {
   respectReducedMotion: true,
   autoDetectColorScheme: true,
   pauseOffScreen: true,
+  mode: 'character',
 };
+
+type GridIterator = (
+  ctx: CanvasRenderingContext2D,
+  rect: DOMRect,
+  onItem: (
+    text: string,
+    centerX: number,
+    y: number,
+    row: number,
+    col: number,
+  ) => void,
+) => void;
 
 // ── Engine ────────────────────────────────────────────────────────────────────
 
@@ -172,7 +199,7 @@ export class WordWaveEngine {
   private readonly noise3D = createNoise3D();
 
   // Particle system
-  private particles: LetterParticle[] = [];
+  private particles: Particle[] = [];
   private animationFrameId: number | null = null;
   private time = 0;
   private isVisible = false;
@@ -281,7 +308,9 @@ export class WordWaveEngine {
     }
 
     this.setupCanvas();
-    this.buildAtlas();
+    if (this.config.mode === 'character') {
+      this.buildAtlas();
+    }
     this.createParticles();
 
     // Responsive resize (debounced to avoid expensive rebuilds during drag)
@@ -451,10 +480,9 @@ export class WordWaveEngine {
     this.gridRows = Math.ceil((rect.height + 2 * margin) / NOISE_GRID_CELL) + 1;
     this.noiseGrid = new Float32Array(this.gridCols * this.gridRows);
 
-    this.iterateWordGrid(ctx, rect, (char, centerX, y, row, col) => {
-      const glyph = this.glyphs.get(char);
-      if (!glyph) return;
-
+    const isWordMode = this.config.mode === 'word';
+    const iterate = isWordMode ? this.iterateWordGrid : this.iterateCharGrid;
+    iterate(ctx, rect, (text, centerX, y, row, col) => {
       const depthNoise = this.noise3D(col * 0.1, row * 0.1, 0);
       const isDark =
         this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
@@ -462,14 +490,21 @@ export class WordWaveEngine {
         ? 0.08 + (depthNoise + 1) * 0.04
         : 0.2 + (depthNoise + 1) * 0.08;
 
-      this.particles.push({
-        glyph,
+      const base: BaseParticle = {
         baseX: centerX,
         baseY: y,
         renderX: 0,
         renderY: 0,
         opacity: baseOpacity,
-      });
+      };
+
+      if (isWordMode) {
+        this.particles.push({ ...base, kind: 'word', text });
+      } else {
+        const glyph = this.glyphs.get(text);
+        if (!glyph) return;
+        this.particles.push({ ...base, kind: 'char', glyph });
+      }
     });
 
     // Sort by opacity to minimize globalAlpha state changes in the render loop
@@ -504,10 +539,10 @@ export class WordWaveEngine {
 
   private startAnimationLoop(): void {
     const ctx = this.canvas.getContext('2d');
-    if (!ctx || !this.atlas) {
+    if (!ctx || (this.config.mode === 'character' && !this.atlas)) {
       if (!ctx)
         console.warn('word-wave: failed to acquire 2D context for animation');
-      if (!this.atlas)
+      if (this.config.mode === 'character' && !this.atlas)
         console.warn('word-wave: atlas not available, cannot start animation');
       return;
     }
@@ -517,12 +552,14 @@ export class WordWaveEngine {
     // This is why options are immutable after construction — these closures
     // read the values set at init time and never re-check this.config.
     const canvas = this.canvas;
+    const mode = this.config.mode;
     const atlas = this.atlas;
     const atlasPhysH = this.atlasPhysHeight;
     const cellH = this.atlasCellHeight;
     const halfH = this.atlasHalfHeight;
-    const { frequency, amplitude, speed, propagation, waveAmplitude } =
+    const { frequency, amplitude, speed, propagation, waveAmplitude, font } =
       this.config;
+    const color = this.resolveColor();
 
     const dirRad = (this.config.direction * Math.PI) / 180;
     const dirCos = Math.cos(dirRad);
@@ -551,6 +588,13 @@ export class WordWaveEngine {
         }
       }
 
+      if (mode === 'word') {
+        ctx.font = font;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = `rgb(${color})`;
+      }
+
       // Render particles via atlas blits
       let currentAlpha = -1;
 
@@ -570,18 +614,22 @@ export class WordWaveEngine {
           currentAlpha = p.opacity;
         }
 
-        const g = p.glyph;
-        ctx.drawImage(
-          atlas,
-          g.sx,
-          0,
-          g.sw,
-          atlasPhysH,
-          p.renderX - g.cssHalfW,
-          p.renderY - halfH,
-          g.cssW,
-          cellH,
-        );
+        if (p.kind === 'char' && atlas) {
+          const g = p.glyph;
+          ctx.drawImage(
+            atlas,
+            g.sx,
+            0,
+            g.sw,
+            atlasPhysH,
+            p.renderX - g.cssHalfW,
+            p.renderY - halfH,
+            g.cssW,
+            cellH,
+          );
+        } else if (p.kind === 'word') {
+          ctx.fillText(p.text, p.renderX, p.renderY);
+        }
       });
 
       ctx.globalAlpha = 1;
@@ -612,23 +660,26 @@ export class WordWaveEngine {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = `rgba(${color}, ${staticOpacity})`;
 
-    this.iterateWordGrid(ctx, rect, (char, centerX, y) => {
-      ctx.fillText(char, centerX, y);
+    const iterate =
+      this.config.mode === 'word' ? this.iterateWordGrid : this.iterateCharGrid;
+    iterate(ctx, rect, (text, centerX, y) => {
+      ctx.fillText(text, centerX, y);
     });
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   /**
-   * Iterate over every character position in the word grid, calling `onChar`
-   * for each character with its center-x, y position, and grid coordinates.
+   * Iterate over every grid cell, calling `onCell` with the word, its
+   * start-x position, width, y position, and grid coordinates.
    */
-  private iterateWordGrid(
+  private forEachGridCell(
     ctx: CanvasRenderingContext2D,
     rect: DOMRect,
-    onChar: (
-      char: string,
-      centerX: number,
+    onCell: (
+      word: string,
+      wordStartX: number,
+      wordWidth: number,
       y: number,
       row: number,
       col: number,
@@ -643,20 +694,41 @@ export class WordWaveEngine {
         const offsetX = row % 2 === 0 ? 0 : spacingX / 2;
         const wordIndex = (row * cols + col) % words.length;
         const word = words[wordIndex];
-
         const wordWidth = ctx.measureText(word).width;
         const wordStartX = col * spacingX + offsetX - spacingX - wordWidth / 2;
         const wordY = row * spacingY - spacingY;
 
-        let charX = wordStartX;
-        for (const char of word) {
-          const charWidth = ctx.measureText(char).width;
-          onChar(char, charX + charWidth / 2, wordY, row, col);
-          charX += charWidth;
-        }
+        onCell(word, wordStartX, wordWidth, wordY, row, col);
       }
     }
   }
+
+  /** Iterate per-character, emitting each character with its center-x. */
+  private iterateCharGrid: GridIterator = (ctx, rect, onItem) => {
+    this.forEachGridCell(
+      ctx,
+      rect,
+      (word, wordStartX, _wordWidth, y, row, col) => {
+        let charX = wordStartX;
+        for (const char of word) {
+          const charWidth = ctx.measureText(char).width;
+          onItem(char, charX + charWidth / 2, y, row, col);
+          charX += charWidth;
+        }
+      },
+    );
+  };
+
+  /** Iterate per-word, emitting each word with its center-x. */
+  private iterateWordGrid: GridIterator = (ctx, rect, onItem) => {
+    this.forEachGridCell(
+      ctx,
+      rect,
+      (word, wordStartX, wordWidth, y, row, col) => {
+        onItem(word, wordStartX + wordWidth / 2, y, row, col);
+      },
+    );
+  };
 
   /** Resolve the text color, respecting auto-detection if configured. */
   private resolveColor(): string {
