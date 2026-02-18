@@ -8,13 +8,15 @@ export default tseslint.config(
   ...tseslint.configs.stylistic,
   prettierConfig,
   {
-    files: ['src/**/*.ts'],
+    files: ['src/**/*.ts', 'demo/**/*.ts'],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ['demo/*.ts', 'vite.config.ts'],
+        },
         tsconfigRootDir: import.meta.dirname,
       },
     },
   },
-  { ignores: ['dist/'] },
+  { ignores: ['dist/', 'demo/dist/'] },
 );

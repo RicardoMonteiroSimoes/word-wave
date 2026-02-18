@@ -17,13 +17,16 @@
   ],
   "scripts": {
     "build": "tsc",
-    "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix",
-    "format": "prettier --write src/",
-    "format:check": "prettier --check src/",
+    "lint": "eslint src/ demo/",
+    "lint:fix": "eslint src/ demo/ --fix",
+    "format": "prettier --write src/ demo/",
+    "format:check": "prettier --check src/ demo/",
     "knip": "knip",
     "duplication": "jscpd src/",
-    "check": "tsc --noEmit && eslint src/ && prettier --check src/ && knip && jscpd src/",
+    "check": "tsc --noEmit && eslint src/ demo/ && prettier --check src/ demo/ && knip && jscpd src/",
+    "demo": "vite",
+    "demo:build": "vite build",
+    "demo:preview": "vite preview",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -51,6 +54,7 @@
     "knip": "^5.84.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",
-    "typescript-eslint": "^8.56.0"
+    "typescript-eslint": "^8.56.0",
+    "vite": "^7.3.1"
   }
 }
