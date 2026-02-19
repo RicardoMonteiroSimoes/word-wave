@@ -77,13 +77,22 @@
         }
       }
 
-      #controls h2 {
-        font-size: 15px;
-        margin-bottom: 12px;
+      /* ── Header ── */
+
+      #controls-header {
+        margin-bottom: 8px;
+      }
+
+      .header-title {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: 8px;
+        margin-bottom: 6px;
+      }
+
+      .header-title .title {
+        font-size: 15px;
+        font-weight: 700;
       }
 
       #fps {
@@ -91,14 +100,13 @@
         font-weight: 400;
         font-variant-numeric: tabular-nums;
         opacity: 0.6;
-        margin-right: auto;
       }
 
       #fps-chart {
         display: block;
         width: 100%;
         height: 24px;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         border-radius: 4px;
         background: rgba(0, 0, 0, 0.05);
       }
@@ -109,42 +117,76 @@
         }
       }
 
-      #toggle-btn,
-      #copy-btn {
-        background: none;
-        border: 1px solid rgba(0, 0, 0, 0.2);
+      .header-actions {
+        display: flex;
+        gap: 4px;
+      }
+
+      .header-actions a,
+      .header-actions button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
         border-radius: 6px;
-        padding: 2px 8px;
+        background: none;
         cursor: pointer;
-        font-size: 12px;
         color: inherit;
+        text-decoration: none;
+      }
+
+      .header-actions a:hover,
+      .header-actions button:hover {
+        background: rgba(0, 0, 0, 0.05);
       }
 
       @media (prefers-color-scheme: dark) {
-        #toggle-btn,
-        #copy-btn {
-          border-color: rgba(255, 255, 255, 0.2);
+        .header-actions a,
+        .header-actions button {
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        .header-actions a:hover,
+        .header-actions button:hover {
+          background: rgba(255, 255, 255, 0.05);
         }
       }
 
-      #github-link {
-        color: inherit;
+      /* ── Collapsible sections ── */
+
+      .control-section summary {
+        font-weight: 600;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
         opacity: 0.5;
-        transition: opacity 0.15s;
-      }
-      #github-link:hover {
-        opacity: 1;
+        cursor: pointer;
+        padding: 6px 0;
+        list-style: none;
       }
 
-      #controls-body {
+      .control-section summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .control-section summary::before {
+        content: '\25B8';
+        margin-right: 4px;
+      }
+
+      .control-section[open] summary::before {
+        content: '\25BE';
+      }
+
+      .section-body {
         display: flex;
         flex-direction: column;
         gap: 10px;
+        padding-bottom: 8px;
       }
 
-      #controls-body.collapsed {
-        display: none;
-      }
+      /* ── Controls ── */
 
       .control-group label {
         display: flex;
@@ -175,16 +217,6 @@
         color: inherit;
       }
 
-      .control-group input[type='color'] {
-        width: 100%;
-        height: 32px;
-        padding: 2px;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        border-radius: 6px;
-        background: transparent;
-        cursor: pointer;
-      }
-
       .control-group select {
         width: 100%;
         padding: 4px 8px;
@@ -196,11 +228,48 @@
         color: inherit;
       }
 
+      /* ── Compact color+opacity rows ── */
+
+      .control-row {
+        display: grid;
+        grid-template-columns: 40px 32px 1fr 40px;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .control-row label {
+        font-weight: 500;
+        font-size: 13px;
+      }
+
+      .control-row input[type='color'] {
+        width: 32px;
+        height: 24px;
+        padding: 1px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 4px;
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .control-row input[type='range'] {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .control-row span {
+        font-size: 12px;
+        font-weight: 400;
+        opacity: 0.6;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
       @media (prefers-color-scheme: dark) {
         .control-group input[type='text'] {
           border-color: rgba(255, 255, 255, 0.15);
         }
-        .control-group input[type='color'] {
+        .control-row input[type='color'] {
           border-color: rgba(255, 255, 255, 0.15);
         }
         .control-group select {
@@ -215,177 +284,222 @@
     </div>
 
     <div id="controls">
-      <h2>
-        word-wave
-        <span id="fps"></span>
-        <a
-          id="github-link"
-          href="https://github.com/RicardoMonteiroSimoes/word-wave"
-          target="_blank"
-          rel="noopener"
-          aria-label="View source on GitHub"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            aria-hidden="true"
+      <div id="controls-header">
+        <div class="header-title">
+          <span class="title">word-wave</span>
+          <span id="fps"></span>
+        </div>
+        <canvas id="fps-chart"></canvas>
+        <div class="header-actions">
+          <a
+            id="github-link"
+            href="https://github.com/RicardoMonteiroSimoes/word-wave"
+            target="_blank"
+            rel="noopener"
+            aria-label="View source on GitHub"
           >
-            <path
-              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-            />
-          </svg>
-        </a>
-        <button id="copy-btn">copy config</button>
-        <button id="toggle-btn">collapse</button>
-      </h2>
-      <canvas id="fps-chart"></canvas>
-      <div id="controls-body">
-        <div class="control-group">
-          <label>mode</label>
-          <select id="opt-mode">
-            <option value="character" selected>character</option>
-            <option value="word">word</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label>color (light) <span id="val-color-light">#1e1e1e</span></label>
-          <input type="color" id="opt-color-light" value="#1e1e1e" />
-        </div>
-        <div class="control-group">
-          <label
-            >opacity (light) <span id="val-opacity-light">0.24</span></label
-          >
-          <input
-            type="range"
-            id="opt-opacity-light"
-            min="0.01"
-            max="1"
-            step="0.01"
-            value="0.24"
-          />
-        </div>
-        <div class="control-group">
-          <label>color (dark) <span id="val-color-dark">#a5a5a5</span></label>
-          <input type="color" id="opt-color-dark" value="#a5a5a5" />
-        </div>
-        <div class="control-group">
-          <label>opacity (dark) <span id="val-opacity-dark">0.12</span></label>
-          <input
-            type="range"
-            id="opt-opacity-dark"
-            min="0.01"
-            max="1"
-            step="0.01"
-            value="0.12"
-          />
-        </div>
-        <div class="control-group">
-          <label>words</label>
-          <input
-            type="text"
-            id="opt-words"
-            value="premium_tier, dark_mode, ai_assistant, beta_analytics, edge_caching"
-          />
-        </div>
-        <div class="control-group">
-          <label>speed <span id="val-speed">0.01</span></label>
-          <input
-            type="range"
-            id="opt-speed"
-            min="0.001"
-            max="0.05"
-            step="0.001"
-            value="0.01"
-          />
-        </div>
-        <div class="control-group">
-          <label>frequency <span id="val-frequency">0.008</span></label>
-          <input
-            type="range"
-            id="opt-frequency"
-            min="0.001"
-            max="0.03"
-            step="0.001"
-            value="0.008"
-          />
-        </div>
-        <div class="control-group">
-          <label>amplitude <span id="val-amplitude">10</span></label>
-          <input
-            type="range"
-            id="opt-amplitude"
-            min="0"
-            max="40"
-            step="1"
-            value="10"
-          />
-        </div>
-        <div class="control-group">
-          <label>waveAmplitude <span id="val-waveAmplitude">15</span></label>
-          <input
-            type="range"
-            id="opt-waveAmplitude"
-            min="0"
-            max="40"
-            step="1"
-            value="15"
-          />
-        </div>
-        <div class="control-group">
-          <label>direction <span id="val-direction">225</span></label>
-          <input
-            type="range"
-            id="opt-direction"
-            min="0"
-            max="360"
-            step="1"
-            value="225"
-          />
-        </div>
-        <div class="control-group">
-          <label>propagation <span id="val-propagation">0.03</span></label>
-          <input
-            type="range"
-            id="opt-propagation"
-            min="0.005"
-            max="0.1"
-            step="0.005"
-            value="0.03"
-          />
-        </div>
-        <div class="control-group">
-          <label>spacingX <span id="val-spacingX">90</span></label>
-          <input
-            type="range"
-            id="opt-spacingX"
-            min="40"
-            max="200"
-            step="5"
-            value="90"
-          />
-        </div>
-        <div class="control-group">
-          <label>spacingY <span id="val-spacingY">20</span></label>
-          <input
-            type="range"
-            id="opt-spacingY"
-            min="10"
-            max="60"
-            step="1"
-            value="20"
-          />
-        </div>
-        <div class="control-group">
-          <label>font</label>
-          <input
-            type="text"
-            id="opt-font"
-            value="14px system-ui, -apple-system, sans-serif"
-          />
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+          </a>
+          <button id="copy-btn" aria-label="Copy config to clipboard">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+              <path
+                d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+              />
+            </svg>
+          </button>
+          <button id="toggle-btn" aria-label="Collapse all sections">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      <details class="control-section" open>
+        <summary>Appearance</summary>
+        <div class="section-body">
+          <div class="control-group">
+            <label>mode</label>
+            <select id="opt-mode">
+              <option value="character" selected>character</option>
+              <option value="word">word</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>light</label>
+            <input type="color" id="opt-color-light" value="#1e1e1e" />
+            <input
+              type="range"
+              id="opt-opacity-light"
+              min="0.01"
+              max="1"
+              step="0.01"
+              value="0.24"
+            />
+            <span id="val-opacity-light">0.24</span>
+          </div>
+          <div class="control-row">
+            <label>dark</label>
+            <input type="color" id="opt-color-dark" value="#a5a5a5" />
+            <input
+              type="range"
+              id="opt-opacity-dark"
+              min="0.01"
+              max="1"
+              step="0.01"
+              value="0.12"
+            />
+            <span id="val-opacity-dark">0.12</span>
+          </div>
+          <div class="control-group">
+            <label>font</label>
+            <input
+              type="text"
+              id="opt-font"
+              value="14px system-ui, -apple-system, sans-serif"
+            />
+          </div>
+        </div>
+      </details>
+
+      <details class="control-section" open>
+        <summary>Wave</summary>
+        <div class="section-body">
+          <div class="control-group">
+            <label>speed <span id="val-speed">0.01</span></label>
+            <input
+              type="range"
+              id="opt-speed"
+              min="0.001"
+              max="0.05"
+              step="0.001"
+              value="0.01"
+            />
+          </div>
+          <div class="control-group">
+            <label>frequency <span id="val-frequency">0.008</span></label>
+            <input
+              type="range"
+              id="opt-frequency"
+              min="0.001"
+              max="0.03"
+              step="0.001"
+              value="0.008"
+            />
+          </div>
+          <div class="control-group">
+            <label>amplitude <span id="val-amplitude">10</span></label>
+            <input
+              type="range"
+              id="opt-amplitude"
+              min="0"
+              max="40"
+              step="1"
+              value="10"
+            />
+          </div>
+          <div class="control-group">
+            <label>waveAmplitude <span id="val-waveAmplitude">15</span></label>
+            <input
+              type="range"
+              id="opt-waveAmplitude"
+              min="0"
+              max="40"
+              step="1"
+              value="15"
+            />
+          </div>
+          <div class="control-group">
+            <label>direction <span id="val-direction">225</span></label>
+            <input
+              type="range"
+              id="opt-direction"
+              min="0"
+              max="360"
+              step="1"
+              value="225"
+            />
+          </div>
+          <div class="control-group">
+            <label>propagation <span id="val-propagation">0.03</span></label>
+            <input
+              type="range"
+              id="opt-propagation"
+              min="0.005"
+              max="0.1"
+              step="0.005"
+              value="0.03"
+            />
+          </div>
+        </div>
+      </details>
+
+      <details class="control-section" open>
+        <summary>Layout</summary>
+        <div class="section-body">
+          <div class="control-group">
+            <label>spacingX <span id="val-spacingX">90</span></label>
+            <input
+              type="range"
+              id="opt-spacingX"
+              min="40"
+              max="200"
+              step="5"
+              value="90"
+            />
+          </div>
+          <div class="control-group">
+            <label>spacingY <span id="val-spacingY">20</span></label>
+            <input
+              type="range"
+              id="opt-spacingY"
+              min="10"
+              max="60"
+              step="1"
+              value="20"
+            />
+          </div>
+          <div class="control-group">
+            <label>words</label>
+            <input
+              type="text"
+              id="opt-words"
+              value="premium_tier, dark_mode, ai_assistant, beta_analytics, edge_caching"
+            />
+          </div>
+        </div>
+      </details>
     </div>
 
     <script type="module" src="./main.ts"></script>

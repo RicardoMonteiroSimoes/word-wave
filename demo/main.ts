@@ -73,16 +73,19 @@ for (const id of Object.keys(sliders)) {
   });
 }
 
-// Wire up color/opacity controls for light and dark modes
-for (const id of [
-  'color-light',
-  'opacity-light',
-  'color-dark',
-  'opacity-dark',
-]) {
+// Wire up color inputs (no display span — hex visible in swatch)
+for (const id of ['color-light', 'color-dark']) {
+  const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(recreate, 150);
+  });
+}
+
+// Wire up opacity sliders with display span
+for (const id of ['opacity-light', 'opacity-dark']) {
   const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
   const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
-
   input.addEventListener('input', () => {
     display.textContent = input.value;
     clearTimeout(debounceTimer);
@@ -193,6 +196,9 @@ requestAnimationFrame(measureFps);
 
 // Copy config to clipboard
 const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+const copyIconSvg = copyBtn.innerHTML;
+const checkSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+
 copyBtn.addEventListener('click', () => {
   const colorLight = (
     document.getElementById('opt-color-light') as HTMLInputElement
@@ -224,27 +230,32 @@ copyBtn.addEventListener('click', () => {
   const json = JSON.stringify(output, null, 2);
   navigator.clipboard.writeText(json).then(
     () => {
-      copyBtn.textContent = 'copied!';
+      copyBtn.innerHTML = checkSvg;
       setTimeout(() => {
-        copyBtn.textContent = 'copy config';
+        copyBtn.innerHTML = copyIconSvg;
       }, 1500);
     },
     () => {
-      copyBtn.textContent = 'failed!';
+      copyBtn.title = 'failed!';
       setTimeout(() => {
-        copyBtn.textContent = 'copy config';
+        copyBtn.title = '';
       }, 1500);
     },
   );
 });
 
-// Collapse/expand toggle
+// Collapse/expand all sections
 const toggleBtn = document.getElementById('toggle-btn') as HTMLButtonElement;
-const controlsBody = document.getElementById('controls-body') as HTMLDivElement;
+const sections =
+  document.querySelectorAll<HTMLDetailsElement>('.control-section');
+const chevronUp = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>`;
+const chevronDown = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>`;
 
 toggleBtn.addEventListener('click', () => {
-  controlsBody.classList.toggle('collapsed');
-  toggleBtn.textContent = controlsBody.classList.contains('collapsed')
-    ? 'expand'
-    : 'collapse';
+  const allOpen = [...sections].every((s) => s.open);
+  sections.forEach((s) => (s.open = !allOpen));
+  toggleBtn.innerHTML = allOpen ? chevronDown : chevronUp;
+  toggleBtn.ariaLabel = allOpen
+    ? 'Expand all sections'
+    : 'Collapse all sections';
 });
