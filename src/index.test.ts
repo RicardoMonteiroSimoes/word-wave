@@ -145,4 +145,24 @@ describe('WordWaveEngine', () => {
     );
     expect(atlasWarnings.length).toBeGreaterThan(0);
   });
+
+  it('constructs with --word-wave-color set', () => {
+    canvas.style.setProperty('--word-wave-color', '#ff0000');
+    expect(() => {
+      engine = new WordWaveEngine(canvas);
+    }).not.toThrow();
+  });
+
+  it('constructs with --word-wave-opacity set', () => {
+    canvas.style.setProperty('--word-wave-opacity', '0.3');
+    expect(() => {
+      engine = new WordWaveEngine(canvas);
+    }).not.toThrow();
+  });
+
+  it('constructs without CSS custom properties (uses fallback)', () => {
+    expect(() => {
+      engine = new WordWaveEngine(canvas);
+    }).not.toThrow();
+  });
 });

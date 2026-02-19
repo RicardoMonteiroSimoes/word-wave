@@ -10,7 +10,7 @@ A high-performance canvas animation engine that renders floating text particles 
 - Automatic `IntersectionObserver` pause when off-screen
 - `ResizeObserver` for responsive canvas sizing
 - `prefers-reduced-motion` support (renders a static pattern)
-- `prefers-color-scheme` support (auto light/dark text color)
+- CSS custom property theming (`--word-wave-color`, `--word-wave-opacity`)
 - Framework-agnostic — works with vanilla JS, Angular, React, Vue, etc.
 
 ## Install
@@ -53,11 +53,48 @@ All fields are optional. Unspecified fields use sensible defaults.
 | `direction` | `number` | `225` | Wave propagation direction in degrees |
 | `propagation` | `number` | `0.03` | Wave density (higher = more crests) |
 | `waveAmplitude` | `number` | `15` | Directional wave push distance (CSS px) |
-| `color` | `string` | `'auto'` | Text color as CSS `r, g, b` triplet or `'auto'` |
 | `font` | `string` | `'14px system-ui, ...'` | CSS font shorthand |
 | `respectReducedMotion` | `boolean` | `true` | Static pattern if `prefers-reduced-motion: reduce` |
-| `autoDetectColorScheme` | `boolean` | `true` | Auto light/dark color from `prefers-color-scheme` |
 | `pauseOffScreen` | `boolean` | `true` | Pause animation when canvas is not visible |
+| `mode` | `'character' \| 'word'` | `'character'` | Per-character or per-word displacement |
+
+## Color & Opacity
+
+Color and opacity are controlled via CSS custom properties on the canvas element, not JS options. This lets you use standard CSS for theming (media queries, class toggles, CSS variables).
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `--word-wave-color` | inherited `color` | Text color (any CSS color value) |
+| `--word-wave-opacity` | `0.15` | Base particle opacity (`0`–`1`) |
+
+The engine reads these once at construction. To update, set the properties and recreate the engine.
+
+### Example: light/dark theming
+
+```css
+canvas {
+  --word-wave-color: #1e1e1e;
+  --word-wave-opacity: 0.24;
+}
+
+@media (prefers-color-scheme: dark) {
+  canvas {
+    --word-wave-color: #a5a5a5;
+    --word-wave-opacity: 0.12;
+  }
+}
+```
+
+```ts
+// Recreate on scheme change to pick up new CSS values
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+mq.addEventListener('change', () => {
+  engine.destroy();
+  engine = new WordWaveEngine(canvas, opts);
+});
+```
+
+If no CSS custom properties are set, the engine falls back to the canvas element's inherited CSS `color` for text color, and `0.15` for opacity.
 
 ## License
 

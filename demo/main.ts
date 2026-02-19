@@ -3,6 +3,19 @@ import { WordWaveEngine, WordWaveOptions } from 'word-wave';
 const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
 const modeSelect = document.getElementById('opt-mode') as HTMLSelectElement;
 
+// Apply current color scheme's CSS custom properties to the canvas
+function applyColorScheme(): void {
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const color = isDark
+    ? (document.getElementById('opt-color-dark') as HTMLInputElement).value
+    : (document.getElementById('opt-color-light') as HTMLInputElement).value;
+  const opacity = isDark
+    ? (document.getElementById('opt-opacity-dark') as HTMLInputElement).value
+    : (document.getElementById('opt-opacity-light') as HTMLInputElement).value;
+  canvas.style.setProperty('--word-wave-color', color);
+  canvas.style.setProperty('--word-wave-opacity', opacity);
+}
+
 // Slider options: id suffix → config key + parser
 const sliders: Record<string, keyof WordWaveOptions> = {
   speed: 'speed',
@@ -26,9 +39,7 @@ function getOptions(): Partial<WordWaveOptions> {
       .filter(Boolean),
     font: fontInput.value,
     mode: modeSelect.value as 'character' | 'word',
-    color: 'auto',
     respectReducedMotion: true,
-    autoDetectColorScheme: true,
     pauseOffScreen: true,
   };
 
@@ -40,9 +51,11 @@ function getOptions(): Partial<WordWaveOptions> {
   return opts;
 }
 
+applyColorScheme();
 let engine = new WordWaveEngine(canvas, getOptions());
 
 function recreate(): void {
+  applyColorScheme();
   engine.destroy();
   engine = new WordWaveEngine(canvas, getOptions());
 }
@@ -50,6 +63,23 @@ function recreate(): void {
 // Wire up sliders — update display value and debounce engine recreation
 let debounceTimer: ReturnType<typeof setTimeout>;
 for (const id of Object.keys(sliders)) {
+  const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
+  const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
+
+  input.addEventListener('input', () => {
+    display.textContent = input.value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(recreate, 150);
+  });
+}
+
+// Wire up color/opacity controls for light and dark modes
+for (const id of [
+  'color-light',
+  'opacity-light',
+  'color-dark',
+  'opacity-dark',
+]) {
   const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
   const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
 
@@ -71,6 +101,11 @@ for (const id of ['words', 'font']) {
 
 // Wire up mode select — recreate immediately on change
 modeSelect.addEventListener('change', recreate);
+
+// Listen for OS color scheme changes and recreate engine with new colors
+window
+  .matchMedia('(prefers-color-scheme: dark)')
+  .addEventListener('change', recreate);
 
 // FPS counter — separate rAF loop measuring frame-to-frame delivery rate
 const fpsDisplay = document.getElementById('fps') as HTMLSpanElement;
@@ -159,7 +194,34 @@ requestAnimationFrame(measureFps);
 // Copy config to clipboard
 const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
 copyBtn.addEventListener('click', () => {
-  const json = JSON.stringify(getOptions(), null, 2);
+  const colorLight = (
+    document.getElementById('opt-color-light') as HTMLInputElement
+  ).value;
+  const opacityLight = (
+    document.getElementById('opt-opacity-light') as HTMLInputElement
+  ).value;
+  const colorDark = (
+    document.getElementById('opt-color-dark') as HTMLInputElement
+  ).value;
+  const opacityDark = (
+    document.getElementById('opt-opacity-dark') as HTMLInputElement
+  ).value;
+
+  const output = {
+    options: getOptions(),
+    css: {
+      light: {
+        '--word-wave-color': colorLight,
+        '--word-wave-opacity': opacityLight,
+      },
+      dark: {
+        '--word-wave-color': colorDark,
+        '--word-wave-opacity': opacityDark,
+      },
+    },
+  };
+
+  const json = JSON.stringify(output, null, 2);
   navigator.clipboard.writeText(json).then(
     () => {
       copyBtn.textContent = 'copied!';

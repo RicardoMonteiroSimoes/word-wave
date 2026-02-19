@@ -41,6 +41,15 @@
 
       #wave-canvas {
         display: block;
+        --word-wave-color: #1e1e1e;
+        --word-wave-opacity: 0.24;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        #wave-canvas {
+          --word-wave-color: #a5a5a5;
+          --word-wave-opacity: 0.12;
+        }
       }
 
       /* ── Controls panel ─────────────────────────────────── */
@@ -157,6 +166,16 @@
         color: inherit;
       }
 
+      .control-group input[type='color'] {
+        width: 100%;
+        height: 32px;
+        padding: 2px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+      }
+
       .control-group select {
         width: 100%;
         padding: 4px 8px;
@@ -170,6 +189,9 @@
 
       @media (prefers-color-scheme: dark) {
         .control-group input[type='text'] {
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        .control-group input[type='color'] {
           border-color: rgba(255, 255, 255, 0.15);
         }
         .control-group select {
@@ -198,6 +220,38 @@
             <option value="character" selected>character</option>
             <option value="word">word</option>
           </select>
+        </div>
+        <div class="control-group">
+          <label>color (light) <span id="val-color-light">#1e1e1e</span></label>
+          <input type="color" id="opt-color-light" value="#1e1e1e" />
+        </div>
+        <div class="control-group">
+          <label
+            >opacity (light) <span id="val-opacity-light">0.24</span></label
+          >
+          <input
+            type="range"
+            id="opt-opacity-light"
+            min="0.01"
+            max="1"
+            step="0.01"
+            value="0.24"
+          />
+        </div>
+        <div class="control-group">
+          <label>color (dark) <span id="val-color-dark">#a5a5a5</span></label>
+          <input type="color" id="opt-color-dark" value="#a5a5a5" />
+        </div>
+        <div class="control-group">
+          <label>opacity (dark) <span id="val-opacity-dark">0.12</span></label>
+          <input
+            type="range"
+            id="opt-opacity-dark"
+            min="0.01"
+            max="1"
+            step="0.01"
+            value="0.12"
+          />
         </div>
         <div class="control-group">
           <label>words</label>

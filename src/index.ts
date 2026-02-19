@@ -11,7 +11,7 @@ import { createNoise3D } from 'simplex-noise';
 //   • Automatic IntersectionObserver pause when off-screen
 //   • ResizeObserver for responsive canvas sizing
 //   • prefers-reduced-motion support (renders a static pattern)
-//   • prefers-color-scheme support (auto light/dark text color)
+//   • CSS custom property color/opacity support
 //
 // Usage (vanilla JS / any framework):
 //
@@ -69,20 +69,11 @@ export interface WordWaveOptions {
   /** How far the directional wave pushes particles (CSS px). */
   waveAmplitude: number;
 
-  /**
-   * Text color as a CSS `r, g, b` triplet (e.g. `'74, 74, 74'`) or `'auto'`
-   * to derive from `prefers-color-scheme`.
-   */
-  color: string;
-
   /** CSS font shorthand string. */
   font: string;
 
   /** When true, renders a static pattern if `prefers-reduced-motion: reduce` is active. */
   respectReducedMotion: boolean;
-
-  /** When `color` is `'auto'`, pick light/dark color from `prefers-color-scheme`. */
-  autoDetectColorScheme: boolean;
 
   /** Pause the animation loop when the canvas scrolls out of view. */
   pauseOffScreen: boolean;
@@ -147,10 +138,8 @@ const DEFAULTS: WordWaveOptions = {
   direction: 225,
   propagation: 0.03,
   waveAmplitude: 15,
-  color: 'auto',
   font: '14px system-ui, -apple-system, sans-serif',
   respectReducedMotion: true,
-  autoDetectColorScheme: true,
   pauseOffScreen: true,
   mode: 'character',
 };
@@ -197,6 +186,10 @@ export class WordWaveEngine {
   private readonly canvas: HTMLCanvasElement;
   private readonly config: WordWaveOptions;
   private readonly noise3D = createNoise3D();
+
+  // Resolved color and opacity from CSS custom properties
+  private resolvedColor = '#1e1e1e';
+  private resolvedOpacity = 0.15;
 
   // Particle system
   private particles: Particle[] = [];
@@ -300,6 +293,9 @@ export class WordWaveEngine {
   private init(): void {
     if (typeof window === 'undefined') return;
 
+    this.resolvedColor = this.resolveColorFromCSS();
+    this.resolvedOpacity = this.resolveOpacityFromCSS();
+
     // Reduced motion: render once, no animation
     if (this.config.respectReducedMotion && this.prefersReducedMotion()) {
       this.setupCanvas();
@@ -386,7 +382,6 @@ export class WordWaveEngine {
    */
   private buildAtlas(): void {
     const dpr = this.dpr;
-    const color = this.resolveColor();
 
     // Collect unique characters
     const uniqueChars = new Set<string>();
@@ -438,7 +433,7 @@ export class WordWaveEngine {
     ctx.font = this.config.font;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = `rgb(${color})`;
+    ctx.fillStyle = this.resolvedColor;
 
     this.glyphs.clear();
     for (const { char, cellW, x } of entries) {
@@ -484,11 +479,10 @@ export class WordWaveEngine {
     const iterate = isWordMode ? this.iterateWordGrid : this.iterateCharGrid;
     iterate(ctx, rect, (text, centerX, y, row, col) => {
       const depthNoise = this.noise3D(col * 0.1, row * 0.1, 0);
-      const isDark =
-        this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
-      const baseOpacity = isDark
-        ? 0.08 + (depthNoise + 1) * 0.04
-        : 0.2 + (depthNoise + 1) * 0.08;
+      const baseOpacity = Math.min(
+        1,
+        this.resolvedOpacity + (depthNoise + 1) * (this.resolvedOpacity * 0.4),
+      );
 
       const base: BaseParticle = {
         baseX: centerX,
@@ -559,7 +553,7 @@ export class WordWaveEngine {
     const halfH = this.atlasHalfHeight;
     const { frequency, amplitude, speed, propagation, waveAmplitude, font } =
       this.config;
-    const color = this.resolveColor();
+    const color = this.resolvedColor;
 
     const dirRad = (this.config.direction * Math.PI) / 180;
     const dirCos = Math.cos(dirRad);
@@ -592,7 +586,7 @@ export class WordWaveEngine {
         ctx.font = font;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = `rgb(${color})`;
+        ctx.fillStyle = color;
       }
 
       // Render particles via atlas blits
@@ -650,21 +644,19 @@ export class WordWaveEngine {
     if (!parent) return;
     const rect = parent.getBoundingClientRect();
 
-    const color = this.resolveColor();
-    const isDark =
-      this.config.autoDetectColorScheme && this.prefersColorSchemeDark();
-    const staticOpacity = isDark ? 0.08 : 0.28;
-
     ctx.font = this.config.font;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(${color}, ${staticOpacity})`;
+    ctx.fillStyle = this.resolvedColor;
+    ctx.globalAlpha = this.resolvedOpacity;
 
     const iterate =
       this.config.mode === 'word' ? this.iterateWordGrid : this.iterateCharGrid;
     iterate(ctx, rect, (text, centerX, y) => {
       ctx.fillText(text, centerX, y);
     });
+
+    ctx.globalAlpha = 1;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -730,26 +722,31 @@ export class WordWaveEngine {
     );
   };
 
-  /** Resolve the text color, respecting auto-detection if configured. */
-  private resolveColor(): string {
-    if (this.config.color !== 'auto') return this.config.color;
-    if (this.config.autoDetectColorScheme && this.prefersColorSchemeDark()) {
-      return '165, 165, 165';
+  /** Resolve text color from CSS. Fallback: --word-wave-color -> inherited color -> #1e1e1e */
+  private resolveColorFromCSS(): string {
+    const style = getComputedStyle(this.canvas);
+    const custom = style.getPropertyValue('--word-wave-color').trim();
+    if (custom) return custom;
+    const inherited = style.color;
+    if (inherited) return inherited;
+    return '#1e1e1e';
+  }
+
+  /** Resolve base opacity from CSS. Fallback: --word-wave-opacity -> 0.15 */
+  private resolveOpacityFromCSS(): number {
+    const style = getComputedStyle(this.canvas);
+    const raw = style.getPropertyValue('--word-wave-opacity').trim();
+    if (raw) {
+      const parsed = parseFloat(raw);
+      if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) return parsed;
     }
-    return '30, 30, 30';
+    return 0.15;
   }
 
   private prefersReducedMotion(): boolean {
     return (
       typeof window !== 'undefined' &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    );
-  }
-
-  private prefersColorSchemeDark(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches
     );
   }
 }
