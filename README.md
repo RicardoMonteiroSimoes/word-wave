@@ -2,6 +2,8 @@
 
 A high-performance canvas animation engine that renders floating text particles in a simplex-noise-driven wave pattern.
 
+[Live demo](https://ricardomonteirosimoes.github.io/word-wave/) | [npm](https://www.npmjs.com/package/word-wave)
+
 ## Features
 
 - Per-character rendering with a pre-built glyph atlas (`drawImage`, not `fillText`)
@@ -95,6 +97,10 @@ mq.addEventListener('change', () => {
 ```
 
 If no CSS custom properties are set, the engine falls back to the canvas element's inherited CSS `color` for text color, and `0.15` for opacity.
+
+## Built with AI
+
+This project was vibe-engineered with [Claude](https://claude.ai) (Anthropic) under human review and direction throughout.
 
 ## License
 
