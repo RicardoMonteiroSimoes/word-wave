@@ -100,7 +100,8 @@
         }
       }
 
-      #toggle-btn {
+      #toggle-btn,
+      #copy-btn {
         background: none;
         border: 1px solid rgba(0, 0, 0, 0.2);
         border-radius: 6px;
@@ -111,7 +112,8 @@
       }
 
       @media (prefers-color-scheme: dark) {
-        #toggle-btn {
+        #toggle-btn,
+        #copy-btn {
           border-color: rgba(255, 255, 255, 0.2);
         }
       }
@@ -185,6 +187,7 @@
       <h2>
         word-wave
         <span id="fps"></span>
+        <button id="copy-btn">copy config</button>
         <button id="toggle-btn">collapse</button>
       </h2>
       <canvas id="fps-chart"></canvas>

@@ -26,6 +26,10 @@ function getOptions(): Partial<WordWaveOptions> {
       .filter(Boolean),
     font: fontInput.value,
     mode: modeSelect.value as 'character' | 'word',
+    color: 'auto',
+    respectReducedMotion: true,
+    autoDetectColorScheme: true,
+    pauseOffScreen: true,
   };
 
   for (const [id, key] of Object.entries(sliders)) {
@@ -151,6 +155,26 @@ function measureFps(): void {
   requestAnimationFrame(measureFps);
 }
 requestAnimationFrame(measureFps);
+
+// Copy config to clipboard
+const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
+copyBtn.addEventListener('click', () => {
+  const json = JSON.stringify(getOptions(), null, 2);
+  navigator.clipboard.writeText(json).then(
+    () => {
+      copyBtn.textContent = 'copied!';
+      setTimeout(() => {
+        copyBtn.textContent = 'copy config';
+      }, 1500);
+    },
+    () => {
+      copyBtn.textContent = 'failed!';
+      setTimeout(() => {
+        copyBtn.textContent = 'copy config';
+      }, 1500);
+    },
+  );
+});
 
 // Collapse/expand toggle
 const toggleBtn = document.getElementById('toggle-btn') as HTMLButtonElement;
