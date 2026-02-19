@@ -16,7 +16,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "lint": "eslint src/ demo/",
     "lint:fix": "eslint src/ demo/ --fix",
     "format": "prettier --write src/ demo/",
