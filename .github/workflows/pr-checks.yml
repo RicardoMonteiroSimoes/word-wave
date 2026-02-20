@@ -1,0 +1,119 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+
+      # 1. Type check
+      - name: Type check
+        id: typecheck
+        run: npx tsc --noEmit
+
+      - name: Comment on type check failure
+        if: failure() && steps.typecheck.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Type check failed.**
+
+          Run \`tsc --noEmit\` locally to see the errors."
+
+      # 2. Lint
+      - name: Lint
+        id: lint
+        run: npm run lint
+
+      - name: Comment on lint failure
+        if: failure() && steps.lint.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Linting failed.**
+
+          Run \`npm run lint\` to see issues, or \`npm run lint:fix\` to auto-fix."
+
+      # 3. Format check
+      - name: Format check
+        id: format
+        run: npm run format:check
+
+      - name: Comment on format failure
+        if: failure() && steps.format.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Formatting check failed.**
+
+          Run \`npm run format\` to auto-format, then commit the changes."
+
+      # 4. Unused code
+      - name: Unused code check
+        id: knip
+        run: npm run knip
+
+      - name: Comment on unused code failure
+        if: failure() && steps.knip.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Unused exports or dependencies detected.**
+
+          Run \`npm run knip\` locally to see what needs to be removed or re-exported."
+
+      # 5. Duplication
+      - name: Duplication check
+        id: duplication
+        run: npm run duplication
+
+      - name: Comment on duplication failure
+        if: failure() && steps.duplication.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Code duplication detected.**
+
+          Run \`npm run duplication\` locally to see duplicated blocks."
+
+      # 6. Tests
+      - name: Tests
+        id: test
+        run: npm test
+
+      - name: Comment on test failure
+        if: failure() && steps.test.outcome == 'failure'
+        continue-on-error: true
+        run: |
+          gh pr comment "$PR_NUMBER" --body \
+          "@$PR_AUTHOR **Tests failed.**
+
+          Run \`npm test\` locally to see which tests are failing."
+
+      # All passed — assign reviewer
+      - name: Assign reviewer
+        if: success() && github.event.pull_request.user.login != github.repository_owner
+        continue-on-error: true
+        run: |
+          gh pr edit "$PR_NUMBER" --add-reviewer "${{ github.repository_owner }}"
