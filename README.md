@@ -1,5 +1,9 @@
 # word-wave
 
+<img width="1299" height="458" alt="image" src="https://github.com/user-attachments/assets/203f8211-0606-4e45-8a3d-c0c2d92f152e" />
+
+<hr/>
+
 A high-performance canvas animation engine that renders floating text particles in a simplex-noise-driven wave pattern.
 
 [Live demo](https://ricardomonteirosimoes.github.io/word-wave/) | [npm](https://www.npmjs.com/package/word-wave)
