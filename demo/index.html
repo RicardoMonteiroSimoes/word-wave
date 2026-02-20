@@ -27,11 +27,9 @@
         color: #222;
       }
 
-      @media (prefers-color-scheme: dark) {
-        body {
-          background: #111;
-          color: #ddd;
-        }
+      body[data-theme='dark'] {
+        background: #111;
+        color: #ddd;
       }
 
       #canvas-container {
@@ -45,11 +43,9 @@
         --word-wave-opacity: 0.24;
       }
 
-      @media (prefers-color-scheme: dark) {
-        #wave-canvas {
-          --word-wave-color: #a5a5a5;
-          --word-wave-opacity: 0.12;
-        }
+      body[data-theme='dark'] #wave-canvas {
+        --word-wave-color: #a5a5a5;
+        --word-wave-opacity: 0.12;
       }
 
       /* ── Controls panel ─────────────────────────────────── */
@@ -70,11 +66,9 @@
         z-index: 10;
       }
 
-      @media (prefers-color-scheme: dark) {
-        #controls {
-          background: rgba(30, 30, 30, 0.92);
-          border-color: rgba(255, 255, 255, 0.1);
-        }
+      body[data-theme='dark'] #controls {
+        background: rgba(30, 30, 30, 0.92);
+        border-color: rgba(255, 255, 255, 0.1);
       }
 
       /* ── Header ── */
@@ -111,10 +105,8 @@
         background: rgba(0, 0, 0, 0.05);
       }
 
-      @media (prefers-color-scheme: dark) {
-        #fps-chart {
-          background: rgba(255, 255, 255, 0.05);
-        }
+      body[data-theme='dark'] #fps-chart {
+        background: rgba(255, 255, 255, 0.05);
       }
 
       .header-actions {
@@ -142,15 +134,13 @@
         background: rgba(0, 0, 0, 0.05);
       }
 
-      @media (prefers-color-scheme: dark) {
-        .header-actions a,
-        .header-actions button {
-          border-color: rgba(255, 255, 255, 0.15);
-        }
-        .header-actions a:hover,
-        .header-actions button:hover {
-          background: rgba(255, 255, 255, 0.05);
-        }
+      body[data-theme='dark'] .header-actions a,
+      body[data-theme='dark'] .header-actions button {
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+      body[data-theme='dark'] .header-actions a:hover,
+      body[data-theme='dark'] .header-actions button:hover {
+        background: rgba(255, 255, 255, 0.05);
       }
 
       /* ── Collapsible sections ── */
@@ -202,6 +192,16 @@
         font-variant-numeric: tabular-nums;
       }
 
+      .control-group label input[type='color'] {
+        width: 32px;
+        height: 24px;
+        padding: 1px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 4px;
+        background: transparent;
+        cursor: pointer;
+      }
+
       .control-group input[type='range'] {
         width: 100%;
       }
@@ -232,7 +232,7 @@
 
       .control-row {
         display: grid;
-        grid-template-columns: 40px 32px 1fr 40px;
+        grid-template-columns: 64px 32px 1fr 40px;
         align-items: center;
         gap: 6px;
       }
@@ -265,16 +265,11 @@
         text-align: right;
       }
 
-      @media (prefers-color-scheme: dark) {
-        .control-group input[type='text'] {
-          border-color: rgba(255, 255, 255, 0.15);
-        }
-        .control-row input[type='color'] {
-          border-color: rgba(255, 255, 255, 0.15);
-        }
-        .control-group select {
-          border-color: rgba(255, 255, 255, 0.15);
-        }
+      body[data-theme='dark'] .control-group input[type='text'],
+      body[data-theme='dark'] .control-group input[type='color'],
+      body[data-theme='dark'] .control-row input[type='color'],
+      body[data-theme='dark'] .control-group select {
+        border-color: rgba(255, 255, 255, 0.15);
       }
     </style>
   </head>
@@ -310,6 +305,29 @@
               />
             </svg>
           </a>
+          <button id="theme-btn" aria-label="Toggle dark mode">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="5" />
+              <line x1="12" y1="1" x2="12" y2="3" />
+              <line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" />
+              <line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+            </svg>
+          </button>
           <button id="copy-btn" aria-label="Copy config to clipboard">
             <svg
               width="18"
@@ -356,8 +374,20 @@
               <option value="word">word</option>
             </select>
           </div>
+          <div class="control-group">
+            <label for="opt-bg-light">
+              light background
+              <input type="color" id="opt-bg-light" value="#fafafa" />
+            </label>
+          </div>
+          <div class="control-group">
+            <label for="opt-bg-dark">
+              dark background
+              <input type="color" id="opt-bg-dark" value="#111111" />
+            </label>
+          </div>
           <div class="control-row">
-            <label>light</label>
+            <label>light text</label>
             <input type="color" id="opt-color-light" value="#1e1e1e" />
             <input
               type="range"
@@ -370,7 +400,7 @@
             <span id="val-opacity-light">0.24</span>
           </div>
           <div class="control-row">
-            <label>dark</label>
+            <label>dark text</label>
             <input type="color" id="opt-color-dark" value="#a5a5a5" />
             <input
               type="range"
