@@ -236,6 +236,7 @@ export class WebGLRenderer {
   draw(): void {
     if (this.destroyed || this.instanceCount === 0) return;
     const gl = this.gl;
+    gl.useProgram(this.program);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.bindVertexArray(this.vao);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.instanceCount);
@@ -243,17 +244,35 @@ export class WebGLRenderer {
 
   // ── Projection ────────────────────────────────────────────────────────────
 
+  private readonly projectionMatrix = new Float32Array(16);
+
   resize(cssW: number, cssH: number, dpr: number): void {
     const gl = this.gl;
+    gl.useProgram(this.program);
     gl.viewport(0, 0, cssW * dpr, cssH * dpr);
     // Orthographic: CSS pixels → clip space (y flipped for canvas convention)
+    const m = this.projectionMatrix;
     // prettier-ignore
-    gl.uniformMatrix4fv(this.projectionLoc, false, new Float32Array([
-      2 / cssW,  0,          0, 0,
-      0,        -2 / cssH,   0, 0,
-      0,         0,          1, 0,
-     -1,         1,          0, 1,
-    ]));
+    m[0] = 2 / cssW;
+    m[1] = 0;
+    m[2] = 0;
+    m[3] = 0;
+    // prettier-ignore
+    m[4] = 0;
+    m[5] = -2 / cssH;
+    m[6] = 0;
+    m[7] = 0;
+    // prettier-ignore
+    m[8] = 0;
+    m[9] = 0;
+    m[10] = 1;
+    m[11] = 0;
+    // prettier-ignore
+    m[12] = -1;
+    m[13] = 1;
+    m[14] = 0;
+    m[15] = 1;
+    gl.uniformMatrix4fv(this.projectionLoc, false, m);
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -299,6 +318,7 @@ function attr(
   divisor: number,
 ): void {
   const loc = gl.getAttribLocation(program, name);
+  if (loc === -1) return;
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, offset);
   if (divisor) gl.vertexAttribDivisor(loc, divisor);

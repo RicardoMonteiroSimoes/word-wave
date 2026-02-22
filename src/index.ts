@@ -533,6 +533,12 @@ export class WordWaveEngine {
       }
     });
 
+    if (this.particles.length === 0 && this.glyphs.size === 0) {
+      console.warn(
+        'word-wave: atlas build failed — no particles created. Check that 2D canvas context is available.',
+      );
+    }
+
     // Sort by opacity to minimize globalAlpha state changes in the 2D render path
     this.particles.sort((a, b) => a.opacity - b.opacity);
 
