@@ -1,31 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WordWaveEngine, DEFAULT_WORDS } from './index';
+import { createCanvas } from './test-utils';
 
 // happy-dom doesn't implement canvas 2D context, so the engine logs expected
 // warnings during tests. We spy on console.warn to suppress output and to
 // assert that the correct warnings fire.
 const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-
-function createCanvas(): HTMLCanvasElement {
-  const container = document.createElement('div');
-  Object.defineProperty(container, 'getBoundingClientRect', {
-    value: () => ({
-      width: 800,
-      height: 600,
-      top: 0,
-      left: 0,
-      right: 800,
-      bottom: 600,
-      x: 0,
-      y: 0,
-      toJSON: () => ({}),
-    }),
-  });
-  document.body.appendChild(container);
-  const canvas = document.createElement('canvas');
-  container.appendChild(canvas);
-  return canvas;
-}
 
 describe('DEFAULT_WORDS', () => {
   it('contains the expected fallback words', () => {
