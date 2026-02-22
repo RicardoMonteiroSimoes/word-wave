@@ -141,39 +141,85 @@ jobs:
         continue-on-error: true
         run: npx vitest bench --outputJson /tmp/bench-baseline.json
 
-      # 2. PR branch: checkout and run benchmarks with comparison
+      # 2. PR branch: checkout and run benchmarks
       - uses: actions/checkout@v4
         with:
           clean: false
       - run: npm ci
       - name: PR benchmarks
         id: bench
-        run: |
-          if [ -f /tmp/bench-baseline.json ]; then
-            npx vitest bench --compare /tmp/bench-baseline.json 2>&1 | tee /tmp/bench-output.txt
-          else
-            npx vitest bench 2>&1 | tee /tmp/bench-output.txt
-          fi
+        run: npx vitest bench --outputJson /tmp/bench-pr.json
 
-      # 3. Post results as PR comment (upsert)
+      # 3. Build comparison table and post as PR comment
       - name: Post benchmark results
         if: always() && steps.bench.outcome == 'success'
         run: |
-          # Strip ANSI color codes
-          RESULTS=$(sed 's/\x1b\[[0-9;]*m//g' /tmp/bench-output.txt | grep -A 100 '✓\|name ')
+          node -e '
+          const fs = require("fs");
 
-          BODY=$(cat <<'HEADER'
-          <!-- benchmark-results -->
-          ## Benchmark Results
+          const pr = JSON.parse(fs.readFileSync("/tmp/bench-pr.json", "utf8"));
+          const prBenches = pr.files.flatMap(f => f.groups.flatMap(g => g.benchmarks));
 
-          HEADER
-          )
+          let hasBaseline = false;
+          let baseMap = new Map();
+          try {
+            const base = JSON.parse(fs.readFileSync("/tmp/bench-baseline.json", "utf8"));
+            for (const b of base.files.flatMap(f => f.groups.flatMap(g => g.benchmarks))) {
+              baseMap.set(b.name, b);
+            }
+            hasBaseline = baseMap.size > 0;
+          } catch {}
 
-          BODY="${BODY}
-          \`\`\`
-          ${RESULTS}
-          \`\`\`
-          "
+          function fmt(n) {
+            return n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                             : n.toFixed(2);
+          }
+
+          let rows = [];
+          for (const b of prBenches) {
+            const base = baseMap.get(b.name);
+            if (hasBaseline && base) {
+              const change = ((b.hz - base.hz) / base.hz) * 100;
+              const sign = change >= 0 ? "+" : "";
+              const icon = Math.abs(change) < 2 ? "~" : change > 0 ? ":arrow_up:" : ":arrow_down:";
+              rows.push(
+                "| " + b.name +
+                " | " + fmt(base.hz) +
+                " | " + fmt(b.hz) +
+                " | " + sign + change.toFixed(1) + "%" +
+                " | " + icon + " |"
+              );
+            } else {
+              rows.push(
+                "| " + b.name +
+                " | — | " + fmt(b.hz) +
+                " | — | |"
+              );
+            }
+          }
+
+          const header = hasBaseline
+            ? "| Benchmark | main (ops/s) | PR (ops/s) | Change | |\n|---|--:|--:|--:|---|"
+            : "| Benchmark | main (ops/s) | PR (ops/s) | Change | |\n|---|--:|--:|--:|---|";
+
+          const note = hasBaseline
+            ? "_~ means within noise (< 2%). Measured on CI — relative changes matter, absolute numbers vary between runs._"
+            : "_No baseline available on main — showing PR results only. Comparison will appear on future PRs._";
+
+          const body = [
+            "<!-- benchmark-results -->",
+            "## Benchmark Results",
+            "",
+            header,
+            ...rows,
+            "",
+            note,
+          ].join("\n");
+
+          fs.writeFileSync("/tmp/bench-comment.md", body);
+          '
+
+          BODY=$(cat /tmp/bench-comment.md)
 
           # Find existing benchmark comment
           COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
