@@ -153,6 +153,7 @@ export class WebGLRenderer {
 
   uploadAtlas(atlasCanvas: HTMLCanvasElement): void {
     const gl = this.gl;
+    gl.useProgram(this.program);
     if (this.texture) gl.deleteTexture(this.texture);
     this.texture = glAssert(gl.createTexture(), 'texture');
 
