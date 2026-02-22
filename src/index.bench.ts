@@ -38,7 +38,15 @@ HTMLCanvasElement.prototype.getContext = function () {
   return createMockContext();
 } as unknown as typeof HTMLCanvasElement.prototype.getContext;
 
-// Capture the animation frame callback so we can drive frames manually
+// Capture the animation frame callback so we can drive frames manually.
+//
+// WARNING: this relies on an implementation detail of WordWaveEngine.
+// The engine's startAnimationLoop() calls requestAnimationFrame(animate),
+// which our mock intercepts to capture the internal `animate` closure.
+// Calling frameCallback() then runs a full frame (noise grid + particle
+// displacement). If the engine stops using requestAnimationFrame or
+// changes how it schedules frames, this benchmark will silently measure
+// nothing — update it accordingly.
 let frameCallback: FrameRequestCallback | null = null;
 globalThis.requestAnimationFrame = (cb) => {
   frameCallback = cb;
