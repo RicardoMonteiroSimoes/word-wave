@@ -117,3 +117,72 @@ jobs:
         continue-on-error: true
         run: |
           gh pr edit "$PR_NUMBER" --add-reviewer "${{ github.repository_owner }}"
+
+  benchmark:
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository ||
+      contains(github.event.pull_request.labels.*.name, 'safe-to-test')
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      # 1. Baseline: checkout main and run benchmarks
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Baseline benchmarks (main)
+        id: baseline
+        continue-on-error: true
+        run: npx vitest bench --outputJson /tmp/bench-baseline.json
+
+      # 2. PR branch: checkout and run benchmarks with comparison
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+      - run: npm ci
+      - name: PR benchmarks
+        id: bench
+        run: |
+          if [ -f /tmp/bench-baseline.json ]; then
+            npx vitest bench --compare /tmp/bench-baseline.json 2>&1 | tee /tmp/bench-output.txt
+          else
+            npx vitest bench 2>&1 | tee /tmp/bench-output.txt
+          fi
+
+      # 3. Post results as PR comment (upsert)
+      - name: Post benchmark results
+        if: always() && steps.bench.outcome == 'success'
+        run: |
+          # Strip ANSI color codes
+          RESULTS=$(sed 's/\x1b\[[0-9;]*m//g' /tmp/bench-output.txt | grep -A 100 '✓\|name ')
+
+          BODY=$(cat <<'HEADER'
+          <!-- benchmark-results -->
+          ## Benchmark Results
+
+          HEADER
+          )
+
+          BODY="${BODY}
+          \`\`\`
+          ${RESULTS}
+          \`\`\`
+          "
+
+          # Find existing benchmark comment
+          COMMENT_ID=$(gh api "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            --jq '.[] | select(.body | contains("<!-- benchmark-results -->")) | .id' \
+            | head -1)
+
+          if [ -n "$COMMENT_ID" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/${COMMENT_ID}" \
+              -X PATCH -f body="$BODY"
+          else
+            gh pr comment "$PR_NUMBER" --body "$BODY"
+          fi
