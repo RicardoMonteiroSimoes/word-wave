@@ -1,4 +1,5 @@
 {
   "entry": ["demo/main.ts"],
-  "project": ["src/**/*.ts", "demo/**/*.ts"]
+  "project": ["src/**/*.ts", "demo/**/*.ts"],
+  "ignore": ["src/**/*.bench.ts"]
 }
