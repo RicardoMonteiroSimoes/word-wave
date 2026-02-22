@@ -64,25 +64,57 @@ const WORDS = [
   'analytics',
 ];
 
-// ── Setup: a long-lived engine for frame & resize benchmarks ────────────────
+// ── Setup: long-lived engines for frame benchmarks ──────────────────────────
+// Each engine construction overwrites frameCallback via the rAF mock,
+// so we save each callback right after construction.
 
-const persistentCanvas = createCanvas();
-const persistentEngine = new WordWaveEngine(persistentCanvas, {
+const charCanvas = createCanvas();
+const charEngine = new WordWaveEngine(charCanvas, {
   words: WORDS,
+  mode: 'character',
   pauseOffScreen: false,
 });
+// TypeScript can't see that the constructor mutates frameCallback via the
+// rAF mock, so it narrows to null. We read through a helper to prevent this.
+const capture = () => frameCallback;
+
+const charFrameCallback = capture();
+
+const wordCanvas = createCanvas();
+new WordWaveEngine(wordCanvas, {
+  words: WORDS,
+  mode: 'word',
+  pauseOffScreen: false,
+});
+const wordFrameCallback = capture();
 
 // ── Benchmarks ──────────────────────────────────────────────────────────────
 
 describe('WordWaveEngine', () => {
-  bench('single frame', () => {
-    if (frameCallback) frameCallback(performance.now());
+  bench('single frame (character mode)', () => {
+    if (charFrameCallback) charFrameCallback(performance.now());
   });
 
-  bench('engine construction + teardown', () => {
+  bench('single frame (word mode)', () => {
+    if (wordFrameCallback) wordFrameCallback(performance.now());
+  });
+
+  bench('construction (character mode)', () => {
     const canvas = createCanvas();
     const engine = new WordWaveEngine(canvas, {
       words: WORDS,
+      mode: 'character',
+      pauseOffScreen: false,
+    });
+    engine.destroy();
+    canvas.parentElement?.remove();
+  });
+
+  bench('construction (word mode)', () => {
+    const canvas = createCanvas();
+    const engine = new WordWaveEngine(canvas, {
+      words: WORDS,
+      mode: 'word',
       pauseOffScreen: false,
     });
     engine.destroy();
@@ -90,6 +122,6 @@ describe('WordWaveEngine', () => {
   });
 
   bench('resize (rebuild particles)', () => {
-    persistentEngine.resize();
+    charEngine.resize();
   });
 });
