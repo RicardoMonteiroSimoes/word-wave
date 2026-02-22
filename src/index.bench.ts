@@ -68,7 +68,7 @@ const WORDS = [
 // Each engine construction overwrites frameCallback via the rAF mock,
 // so we save each callback right after construction.
 
-const charCanvas = createCanvas(1920, 1080);
+const charCanvas = createCanvas();
 const charEngine = new WordWaveEngine(charCanvas, {
   words: WORDS,
   mode: 'character',
@@ -80,7 +80,7 @@ const capture = () => frameCallback;
 
 const charFrameCallback = capture();
 
-const wordCanvas = createCanvas(1920, 1080);
+const wordCanvas = createCanvas();
 new WordWaveEngine(wordCanvas, {
   words: WORDS,
   mode: 'word',
@@ -100,7 +100,7 @@ describe('WordWaveEngine', () => {
   });
 
   bench('construction (character mode)', () => {
-    const canvas = createCanvas(1920, 1080);
+    const canvas = createCanvas();
     const engine = new WordWaveEngine(canvas, {
       words: WORDS,
       mode: 'character',
@@ -111,7 +111,7 @@ describe('WordWaveEngine', () => {
   });
 
   bench('construction (word mode)', () => {
-    const canvas = createCanvas(1920, 1080);
+    const canvas = createCanvas();
     const engine = new WordWaveEngine(canvas, {
       words: WORDS,
       mode: 'word',
