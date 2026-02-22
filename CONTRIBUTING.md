@@ -78,6 +78,26 @@ npm test
 
 Runs the vitest test suite. Tests live alongside source files as `*.test.ts` and are also included in `npm run check`.
 
+## Benchmarking
+
+Performance benchmarks run against the actual `WordWaveEngine` (with a mocked canvas surface) to measure the JS computation cost of each frame.
+
+```sh
+npm run bench              # run benchmarks
+npm run bench:save         # save results as a baseline
+npm run bench:compare      # compare current results against the saved baseline
+```
+
+Before/after workflow for performance-sensitive changes:
+
+```sh
+npm run bench:save         # 1. save baseline on current code
+# ... make changes ...
+npm run bench:compare      # 2. compare — shows ops/sec diff per benchmark
+```
+
+Benchmarks also run automatically on every PR and post a comparison against `main` as a PR comment.
+
 ## AI-assisted contributions
 
 AI-assisted pull requests are welcome. If you use AI tools (Claude, Copilot, ChatGPT, etc.) to help write your contribution, please:
