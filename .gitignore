@@ -4,3 +4,4 @@ demo/dist/
 *.tgz
 /.idea/
 bench-baseline.json
+bench-browser-baseline.json

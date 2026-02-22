@@ -57,18 +57,18 @@ globalThis.cancelAnimationFrame = () => {};
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const WORDS = [
+  'premium_tier',
   'dark_mode',
-  'feature_flag',
-  'rollout',
-  'beta_test',
-  'analytics',
+  'ai_assistant',
+  'beta_analytics',
+  'edge_caching',
 ];
 
 // ── Setup: long-lived engines for frame benchmarks ──────────────────────────
 // Each engine construction overwrites frameCallback via the rAF mock,
 // so we save each callback right after construction.
 
-const charCanvas = createCanvas();
+const charCanvas = createCanvas(1920, 1080);
 const charEngine = new WordWaveEngine(charCanvas, {
   words: WORDS,
   mode: 'character',
@@ -80,7 +80,7 @@ const capture = () => frameCallback;
 
 const charFrameCallback = capture();
 
-const wordCanvas = createCanvas();
+const wordCanvas = createCanvas(1920, 1080);
 new WordWaveEngine(wordCanvas, {
   words: WORDS,
   mode: 'word',
@@ -100,7 +100,7 @@ describe('WordWaveEngine', () => {
   });
 
   bench('construction (character mode)', () => {
-    const canvas = createCanvas();
+    const canvas = createCanvas(1920, 1080);
     const engine = new WordWaveEngine(canvas, {
       words: WORDS,
       mode: 'character',
@@ -111,7 +111,7 @@ describe('WordWaveEngine', () => {
   });
 
   bench('construction (word mode)', () => {
-    const canvas = createCanvas();
+    const canvas = createCanvas(1920, 1080);
     const engine = new WordWaveEngine(canvas, {
       words: WORDS,
       mode: 'word',

@@ -10,7 +10,8 @@ A high-performance canvas animation engine that renders floating text particles 
 
 ## Features
 
-- Per-character rendering with a pre-built glyph atlas (`drawImage`, not `fillText`)
+- **WebGL 2 instanced rendering** — all particles drawn in a single GPU draw call, with automatic Canvas 2D fallback
+- Pre-built glyph atlas for characters and whole words (no per-frame `fillText`)
 - Simplex noise sampled on a coarse grid and bilinearly interpolated per particle
 - Directional "beach wave" effect layered on top of the noise field
 - Automatic `IntersectionObserver` pause when off-screen

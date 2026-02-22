@@ -1,11 +1,14 @@
 import { createNoise3D } from 'simplex-noise';
+import { WebGLRenderer } from './webgl-renderer';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // WordWaveEngine — A high-performance canvas animation that renders floating
 // text particles (e.g. feature-flag names) in a simplex-noise-driven wave.
 //
 // Features:
-//   • Per-character rendering with a pre-built glyph atlas (drawImage, not fillText)
+//   • WebGL 2 instanced rendering — all particles drawn in a single draw call
+//   • Pre-built glyph atlas for both characters and whole words
+//   • Automatic Canvas 2D fallback when WebGL is unavailable
 //   • Simplex noise sampled on a coarse grid and bilinearly interpolated per particle
 //   • Directional "beach wave" effect layered on top of the noise field
 //   • Automatic IntersectionObserver pause when off-screen
@@ -87,13 +90,13 @@ export const DEFAULT_WORDS: readonly string[] = ['No', 'Words', 'Supplied!'];
 
 // ── Internal types ───────────────────────────────────────────────────────────
 
-/** A pre-rendered glyph in the character atlas. */
-interface CharGlyph {
+/** A pre-rendered sprite in the atlas (used for both characters and whole words). */
+interface AtlasGlyph {
   /** Source x offset in the atlas (physical pixels). */
   sx: number;
   /** Source width in the atlas (physical pixels). */
   sw: number;
-  /** Character cell width (CSS pixels). */
+  /** Sprite width (CSS pixels). */
   cssW: number;
   /** Half of cssW, cached for centering math. */
   cssHalfW: number;
@@ -109,12 +112,12 @@ interface BaseParticle {
 
 interface CharParticle extends BaseParticle {
   kind: 'char';
-  glyph: CharGlyph;
+  glyph: AtlasGlyph;
 }
 
 interface WordParticle extends BaseParticle {
   kind: 'word';
-  text: string;
+  glyph: AtlasGlyph;
 }
 
 type Particle = CharParticle | WordParticle;
@@ -167,17 +170,17 @@ type GridIterator = (
  *
  * ### Performance techniques
  *
- * 1. **Character atlas** — Every unique glyph is pre-rendered once onto an
- *    offscreen canvas. The animation loop uses `drawImage()` blits instead of
- *    `fillText()`, eliminating per-frame font shaping and rasterization.
+ * 1. **WebGL 2 instanced rendering** — All particles are drawn in a single
+ *    `drawArraysInstanced()` call. Each particle is a textured quad whose
+ *    sprite is looked up from the glyph atlas via per-instance UV attributes.
+ *    Falls back to Canvas 2D `drawImage()` when WebGL 2 is unavailable.
  *
- * 2. **Noise grid interpolation** — Instead of calling `noise3D()` for each
- *    of the ~8,500 particles, noise is sampled on a coarse spatial grid
+ * 2. **Glyph atlas** — Every unique glyph (character or word) is pre-rendered
+ *    once onto an offscreen canvas. The animation loop never calls `fillText()`.
+ *
+ * 3. **Noise grid interpolation** — Instead of calling `noise3D()` for each
+ *    of the ~12,000 particles, noise is sampled on a coarse spatial grid
  *    (~700 points) and bilinearly interpolated per particle.
- *
- * 3. **Opacity batching** — Particles are sorted by opacity so `globalAlpha`
- *    state changes are minimized (one change per unique opacity level instead
- *    of per particle).
  *
  * 4. **Off-screen pause** — An `IntersectionObserver` automatically stops the
  *    `requestAnimationFrame` loop when the canvas is not visible.
@@ -206,12 +209,17 @@ export class WordWaveEngine {
   private gridOriginX = 0;
   private gridOriginY = 0;
 
-  // Character atlas
+  // Atlas (pre-rendered sprites for characters or whole words)
   private atlas: HTMLCanvasElement | null = null;
-  private glyphs = new Map<string, CharGlyph>();
+  private glyphs = new Map<string, AtlasGlyph>();
   private atlasCellHeight = 0;
   private atlasHalfHeight = 0;
   private atlasPhysHeight = 0;
+
+  // WebGL instanced renderer (null = Canvas 2D fallback)
+  private renderer: WebGLRenderer | null = null;
+  // Offscreen context for text measurement (avoids touching the main canvas context)
+  private measureCtx: CanvasRenderingContext2D | null = null;
 
   // Observers
   private resizeObserver: ResizeObserver | null = null;
@@ -284,6 +292,8 @@ export class WordWaveEngine {
     this.visibilityObserver?.disconnect();
     this.resizeObserver = null;
     this.visibilityObserver = null;
+    this.renderer?.destroy();
+    this.renderer = null;
     this.atlas = null;
     this.particles = [];
   }
@@ -296,17 +306,32 @@ export class WordWaveEngine {
     this.resolvedColor = this.resolveColorFromCSS();
     this.resolvedOpacity = this.resolveOpacityFromCSS();
 
-    // Reduced motion: render once, no animation
+    // Offscreen context for text measurement (never touches the main canvas)
+    const measureCanvas = document.createElement('canvas');
+    this.measureCtx = measureCanvas.getContext('2d');
+    if (this.measureCtx) this.measureCtx.font = this.config.font;
+
+    // Reduced motion: render once with 2D context, no animation
     if (this.config.respectReducedMotion && this.prefersReducedMotion()) {
       this.setupCanvas();
       this.renderStaticPattern();
       return;
     }
 
-    this.setupCanvas();
-    if (this.config.mode === 'character') {
-      this.buildAtlas();
+    // DPR is needed by buildAtlas before setupCanvas sets it
+    this.dpr = window.devicePixelRatio || 1;
+
+    this.buildAtlas();
+
+    // Attempt WebGL instanced rendering; fall back to Canvas 2D
+    try {
+      this.renderer = new WebGLRenderer(this.canvas);
+      if (this.atlas) this.renderer.uploadAtlas(this.atlas);
+    } catch {
+      this.renderer = null;
     }
+
+    this.setupCanvas();
     this.createParticles();
 
     // Responsive resize (debounced to avoid expensive rebuilds during drag)
@@ -369,24 +394,35 @@ export class WordWaveEngine {
     this.canvas.style.width = `${rect.width}px`;
     this.canvas.style.height = `${rect.height}px`;
 
-    const ctx = this.canvas.getContext('2d');
-    if (ctx) ctx.scale(dpr, dpr);
+    if (this.renderer) {
+      this.renderer.resize(rect.width, rect.height, dpr);
+    } else {
+      const ctx = this.canvas.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
+    }
   }
 
-  // ── Character atlas ──────────────────────────────────────────────────────
+  // ── Atlas ────────────────────────────────────────────────────────────────
 
   /**
-   * Pre-render every unique character onto an offscreen canvas (the "atlas").
+   * Pre-render sprites onto an offscreen canvas (the "atlas").
+   * In character mode, each unique character gets its own sprite.
+   * In word mode, each unique word gets its own sprite.
    * During animation, `drawImage()` blits from this atlas instead of calling
    * `fillText()` — skipping font shaping and rasterization entirely.
    */
   private buildAtlas(): void {
     const dpr = this.dpr;
+    const isWordMode = this.config.mode === 'word';
 
-    // Collect unique characters
-    const uniqueChars = new Set<string>();
+    // Collect unique strings to render
+    const uniqueStrings = new Set<string>();
     for (const word of this.config.words) {
-      for (const char of word) uniqueChars.add(char);
+      if (isWordMode) {
+        uniqueStrings.add(word);
+      } else {
+        for (const char of word) uniqueStrings.add(char);
+      }
     }
 
     // Measure font metrics
@@ -405,12 +441,12 @@ export class WordWaveEngine {
     const cellHeight = ascent + descent + padding * 2;
     const baseline = ascent + padding;
 
-    // Layout characters horizontally
-    const entries: { char: string; cellW: number; x: number }[] = [];
+    // Layout sprites horizontally
+    const entries: { text: string; cellW: number; x: number }[] = [];
     let totalWidth = 0;
-    for (const char of uniqueChars) {
-      const cellW = Math.ceil(tmpCtx.measureText(char).width) + padding * 2;
-      entries.push({ char, cellW, x: totalWidth });
+    for (const text of uniqueStrings) {
+      const cellW = Math.ceil(tmpCtx.measureText(text).width) + padding * 2;
+      entries.push({ text, cellW, x: totalWidth });
       totalWidth += cellW;
     }
 
@@ -424,9 +460,7 @@ export class WordWaveEngine {
 
     const ctx = this.atlas.getContext('2d');
     if (!ctx) {
-      console.warn(
-        'word-wave: failed to acquire 2D context for character atlas',
-      );
+      console.warn('word-wave: failed to acquire 2D context for atlas');
       return;
     }
     ctx.scale(dpr, dpr);
@@ -436,9 +470,9 @@ export class WordWaveEngine {
     ctx.fillStyle = this.resolvedColor;
 
     this.glyphs.clear();
-    for (const { char, cellW, x } of entries) {
-      ctx.fillText(char, x + cellW / 2, baseline);
-      this.glyphs.set(char, {
+    for (const { text, cellW, x } of entries) {
+      ctx.fillText(text, x + cellW / 2, baseline);
+      this.glyphs.set(text, {
         sx: x * dpr,
         sw: cellW * dpr,
         cssW: cellW,
@@ -451,10 +485,10 @@ export class WordWaveEngine {
 
   private createParticles(): void {
     this.particles = [];
-    const ctx = this.canvas.getContext('2d');
+    const ctx = this.measureCtx;
     if (!ctx) {
       console.warn(
-        'word-wave: failed to acquire 2D context for particle creation',
+        'word-wave: failed to acquire measurement context for particle creation',
       );
       return;
     }
@@ -464,8 +498,6 @@ export class WordWaveEngine {
     const rect = parent.getBoundingClientRect();
 
     const { spacingX, spacingY } = this.config;
-
-    ctx.font = this.config.font;
 
     // Noise grid dimensions
     const margin = Math.max(spacingX, spacingY);
@@ -492,17 +524,27 @@ export class WordWaveEngine {
         opacity: baseOpacity,
       };
 
+      const glyph = this.glyphs.get(text);
+      if (!glyph) return;
       if (isWordMode) {
-        this.particles.push({ ...base, kind: 'word', text });
+        this.particles.push({ ...base, kind: 'word', glyph });
       } else {
-        const glyph = this.glyphs.get(text);
-        if (!glyph) return;
         this.particles.push({ ...base, kind: 'char', glyph });
       }
     });
 
-    // Sort by opacity to minimize globalAlpha state changes in the render loop
+    // Sort by opacity to minimize globalAlpha state changes in the 2D render path
     this.particles.sort((a, b) => a.opacity - b.opacity);
+
+    // Upload static per-instance data to WebGL renderer
+    if (this.renderer && this.atlas) {
+      this.renderer.uploadStaticData(
+        this.particles,
+        this.atlas.width,
+        this.atlasCellHeight,
+        this.atlasHalfHeight,
+      );
+    }
   }
 
   // ── Noise grid ───────────────────────────────────────────────────────────
@@ -532,12 +574,15 @@ export class WordWaveEngine {
   // ── Animation loop ───────────────────────────────────────────────────────
 
   private startAnimationLoop(): void {
-    const ctx = this.canvas.getContext('2d');
-    if (!ctx || (this.config.mode === 'character' && !this.atlas)) {
-      if (!ctx)
-        console.warn('word-wave: failed to acquire 2D context for animation');
-      if (this.config.mode === 'character' && !this.atlas)
-        console.warn('word-wave: atlas not available, cannot start animation');
+    const renderer = this.renderer;
+    const ctx = renderer ? null : this.canvas.getContext('2d');
+
+    if (!renderer && !ctx) {
+      console.warn('word-wave: no rendering context available');
+      return;
+    }
+    if (!renderer && !this.atlas) {
+      console.warn('word-wave: atlas not available for 2D fallback');
       return;
     }
     if (this.animationFrameId !== null) return;
@@ -546,14 +591,12 @@ export class WordWaveEngine {
     // This is why options are immutable after construction — these closures
     // read the values set at init time and never re-check this.config.
     const canvas = this.canvas;
-    const mode = this.config.mode;
     const atlas = this.atlas;
     const atlasPhysH = this.atlasPhysHeight;
     const cellH = this.atlasCellHeight;
     const halfH = this.atlasHalfHeight;
-    const { frequency, amplitude, speed, propagation, waveAmplitude, font } =
+    const { frequency, amplitude, speed, propagation, waveAmplitude } =
       this.config;
-    const color = this.resolvedColor;
 
     const dirRad = (this.config.direction * Math.PI) / 180;
     const dirCos = Math.cos(dirRad);
@@ -564,12 +607,6 @@ export class WordWaveEngine {
         this.animationFrameId = null;
         return;
       }
-
-      // Read CSS dimensions from the canvas element (always in sync via setupCanvas)
-      const dpr = this.dpr;
-      const cssW = canvas.width / dpr;
-      const cssH = canvas.height / dpr;
-      ctx.clearRect(0, 0, cssW, cssH);
 
       // Fill noise grid (~700 noise3D calls instead of ~17,000)
       for (let gy = 0; gy < this.gridRows; gy++) {
@@ -582,33 +619,34 @@ export class WordWaveEngine {
         }
       }
 
-      if (mode === 'word') {
-        ctx.font = font;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = color;
-      }
-
-      // Render particles via atlas blits
-      let currentAlpha = -1;
-
-      this.particles.forEach((p) => {
+      // Compute particle positions
+      const particles = this.particles;
+      for (const p of particles) {
         const noise = this.sampleNoiseGrid(p.baseX, p.baseY);
-
         const dist = p.baseX * dirCos + p.baseY * dirSin;
         const phase = dist * propagation - this.time * 2;
         const wave = Math.max(0, Math.sin(phase));
         const push = wave * wave * waveAmplitude;
-
         p.renderX = p.baseX + noise * amplitude + push * dirCos;
         p.renderY = p.baseY + noise * 0.6 * amplitude + push * dirSin;
+      }
 
-        if (p.opacity !== currentAlpha) {
-          ctx.globalAlpha = p.opacity;
-          currentAlpha = p.opacity;
-        }
+      // Render
+      if (renderer) {
+        renderer.updatePositions(particles);
+        renderer.draw();
+      } else if (ctx && atlas) {
+        const dpr = this.dpr;
+        const cssW = canvas.width / dpr;
+        const cssH = canvas.height / dpr;
+        ctx.clearRect(0, 0, cssW, cssH);
 
-        if (p.kind === 'char' && atlas) {
+        let currentAlpha = -1;
+        for (const p of particles) {
+          if (p.opacity !== currentAlpha) {
+            ctx.globalAlpha = p.opacity;
+            currentAlpha = p.opacity;
+          }
           const g = p.glyph;
           ctx.drawImage(
             atlas,
@@ -621,12 +659,10 @@ export class WordWaveEngine {
             g.cssW,
             cellH,
           );
-        } else if (p.kind === 'word') {
-          ctx.fillText(p.text, p.renderX, p.renderY);
         }
-      });
+        ctx.globalAlpha = 1;
+      }
 
-      ctx.globalAlpha = 1;
       this.time += speed;
       this.animationFrameId = requestAnimationFrame(animate);
     };
