@@ -137,94 +137,82 @@ describe('WordWaveEngine', () => {
       engine = new WordWaveEngine(canvas);
     }).not.toThrow();
   });
-});
 
-describe('effects pipeline', () => {
-  let canvas: HTMLCanvasElement;
-  let engine: WordWaveEngine;
+  // Effects pipeline tests share the same canvas/engine setup
+  describe('effects pipeline', () => {
+    it('constructs with empty effects array', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects: [] });
+      }).not.toThrow();
+    });
 
-  beforeEach(() => {
-    warnSpy.mockClear();
-    canvas = createCanvas();
-  });
+    it('constructs with noise() only', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects: [noise()] });
+      }).not.toThrow();
+    });
 
-  afterEach(() => {
-    engine?.destroy();
-    canvas.parentElement?.remove();
-  });
+    it('constructs with directionalWave() only', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects: [directionalWave()] });
+      }).not.toThrow();
+    });
 
-  it('constructs with empty effects array', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects: [] });
-    }).not.toThrow();
-  });
+    it('constructs with multiple directional waves', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, {
+          effects: [
+            noise(),
+            directionalWave({ direction: 225 }),
+            directionalWave({ direction: 45, amplitude: 8 }),
+          ],
+        });
+      }).not.toThrow();
+    });
 
-  it('constructs with noise() only', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects: [noise()] });
-    }).not.toThrow();
-  });
+    it('constructs with custom inline effect', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, {
+          effects: [
+            (particle, ctx) => ({
+              dx: Math.sin(ctx.time) * 5,
+              dy: 0,
+            }),
+          ],
+        });
+      }).not.toThrow();
+    });
 
-  it('constructs with directionalWave() only', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects: [directionalWave()] });
-    }).not.toThrow();
-  });
+    it('defensively copies the effects array', () => {
+      const effects = [noise(), directionalWave()];
+      engine = new WordWaveEngine(canvas, { effects });
+      effects.push(noise({ amplitude: 100 }));
+      effects.length = 0;
+      expect(() => engine.destroy()).not.toThrow();
+    });
 
-  it('constructs with multiple directional waves', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, {
-        effects: [
-          noise(),
-          directionalWave({ direction: 225 }),
-          directionalWave({ direction: 45, amplitude: 8 }),
-        ],
-      });
-    }).not.toThrow();
-  });
+    it('noise() accepts custom options', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, {
+          effects: [noise({ amplitude: 25, verticalScale: 0.8 })],
+        });
+      }).not.toThrow();
+    });
 
-  it('constructs with custom inline effect', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, {
-        effects: [
-          (particle, ctx) => ({
-            dx: Math.sin(ctx.time) * 5,
-            dy: 0,
-          }),
-        ],
-      });
-    }).not.toThrow();
-  });
-
-  it('defensively copies the effects array', () => {
-    const effects = [noise(), directionalWave()];
-    engine = new WordWaveEngine(canvas, { effects });
-    effects.push(noise({ amplitude: 100 }));
-    effects.length = 0;
-    expect(() => engine.destroy()).not.toThrow();
-  });
-
-  it('noise() accepts custom options', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, {
-        effects: [noise({ amplitude: 25, verticalScale: 0.8 })],
-      });
-    }).not.toThrow();
-  });
-
-  it('directionalWave() accepts custom options', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas, {
-        effects: [
-          directionalWave({
-            direction: 90,
-            propagation: 0.05,
-            amplitude: 20,
-            timeScale: 3,
-          }),
-        ],
-      });
-    }).not.toThrow();
+    it('directionalWave() accepts custom options', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas, {
+          effects: [
+            directionalWave({
+              direction: 90,
+              propagation: 0.05,
+              amplitude: 20,
+              timeScale: 3,
+            }),
+          ],
+        });
+      }).not.toThrow();
+    });
   });
 });
 
