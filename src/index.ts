@@ -690,15 +690,45 @@ export class WordWaveEngine {
     type MutableParticle = {
       -readonly [K in keyof EffectParticle]: EffectParticle[K];
     };
+    // Unroll the pipeline so every call site is monomorphic (V8 can inline).
     const applyEffects = ((fns: DisplacementEffect[]) => {
       const n = fns.length;
+      const ep: MutableParticle = { baseX: 0, baseY: 0, dx: 0, dy: 0 };
       if (n === 0) {
         return (p: Particle) => {
           p.renderX = p.baseX;
           p.renderY = p.baseY;
         };
       }
-      const ep: MutableParticle = { baseX: 0, baseY: 0, dx: 0, dy: 0 };
+      if (n === 1) {
+        const fn0 = fns[0];
+        return (p: Particle, ctx: EffectContext) => {
+          ep.baseX = p.baseX;
+          ep.baseY = p.baseY;
+          ep.dx = 0;
+          ep.dy = 0;
+          const d = fn0(ep, ctx);
+          p.renderX = p.baseX + d.dx;
+          p.renderY = p.baseY + d.dy;
+        };
+      }
+      if (n === 2) {
+        const fn0 = fns[0];
+        const fn1 = fns[1];
+        return (p: Particle, ctx: EffectContext) => {
+          ep.baseX = p.baseX;
+          ep.baseY = p.baseY;
+          ep.dx = 0;
+          ep.dy = 0;
+          const d0 = fn0(ep, ctx);
+          ep.dx = d0.dx;
+          ep.dy = d0.dy;
+          const d1 = fn1(ep, ctx);
+          p.renderX = p.baseX + d0.dx + d1.dx;
+          p.renderY = p.baseY + d0.dy + d1.dy;
+        };
+      }
+      // 3+ effects: indexed loop fallback (rare)
       return (p: Particle, ctx: EffectContext) => {
         ep.baseX = p.baseX;
         ep.baseY = p.baseY;
