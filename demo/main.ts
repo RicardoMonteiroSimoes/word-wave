@@ -1,4 +1,4 @@
-import { WordWaveEngine, WordWaveOptions } from 'word-wave';
+import { WordWaveEngine, WordWaveOptions, noise, directionalWave } from 'word-wave';
 
 const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
 const modeSelect = document.getElementById('opt-mode') as HTMLSelectElement;
@@ -30,20 +30,34 @@ function applyColorScheme(): void {
 }
 
 // Slider options: id suffix → config key + parser
+// Note: amplitude, waveAmplitude, direction, propagation are not direct
+// WordWaveOptions keys — they are composed into the effects pipeline below.
 const sliders: Record<string, keyof WordWaveOptions> = {
   speed: 'speed',
   frequency: 'frequency',
-  amplitude: 'amplitude',
-  waveAmplitude: 'waveAmplitude',
-  direction: 'direction',
-  propagation: 'propagation',
   spacingX: 'spacingX',
   spacingY: 'spacingY',
 };
 
+// Effect-pipeline slider ids (read manually in getOptions)
+const effectSliderIds = ['amplitude', 'waveAmplitude', 'direction', 'propagation'] as const;
+
 function getOptions(): Partial<WordWaveOptions> {
   const wordsInput = document.getElementById('opt-words') as HTMLInputElement;
   const fontInput = document.getElementById('opt-font') as HTMLInputElement;
+
+  const amplitude = parseFloat(
+    (document.getElementById('opt-amplitude') as HTMLInputElement).value,
+  );
+  const waveAmplitude = parseFloat(
+    (document.getElementById('opt-waveAmplitude') as HTMLInputElement).value,
+  );
+  const direction = parseFloat(
+    (document.getElementById('opt-direction') as HTMLInputElement).value,
+  );
+  const propagation = parseFloat(
+    (document.getElementById('opt-propagation') as HTMLInputElement).value,
+  );
 
   const opts: Partial<WordWaveOptions> = {
     words: wordsInput.value
@@ -54,6 +68,10 @@ function getOptions(): Partial<WordWaveOptions> {
     mode: modeSelect.value as 'character' | 'word',
     respectReducedMotion: true,
     pauseOffScreen: true,
+    effects: [
+      noise({ amplitude: amplitude, verticalScale: 0.6 }),
+      directionalWave({ direction: direction, propagation: propagation, amplitude: waveAmplitude, timeScale: 2 }),
+    ],
   };
 
   for (const [id, key] of Object.entries(sliders)) {
@@ -75,7 +93,7 @@ function recreate(): void {
 
 // Wire up sliders — update display value and debounce engine recreation
 let debounceTimer: ReturnType<typeof setTimeout>;
-for (const id of Object.keys(sliders)) {
+for (const id of [...Object.keys(sliders), ...effectSliderIds]) {
   const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
   const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
 
