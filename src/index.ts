@@ -192,13 +192,13 @@ export interface NoiseEffectOptions {
 export function noise(opts?: NoiseEffectOptions): DisplacementEffect {
   const amplitude = opts?.amplitude ?? 10;
   const verticalScale = opts?.verticalScale ?? 0.6;
-  return (particle, ctx) => ({
-    dx: ctx.sampleNoise(particle.baseX, particle.baseY) * amplitude,
-    dy:
-      ctx.sampleNoise(particle.baseX, particle.baseY) *
-      verticalScale *
-      amplitude,
-  });
+  const delta: DisplacementDelta = { dx: 0, dy: 0 };
+  return (particle, ctx) => {
+    const n = ctx.sampleNoise(particle.baseX, particle.baseY);
+    delta.dx = n * amplitude;
+    delta.dy = n * verticalScale * amplitude;
+    return delta;
+  };
 }
 
 /** Options for the built-in directional wave effect. */
@@ -223,12 +223,15 @@ export function directionalWave(
   const propagation = opts?.propagation ?? 0.03;
   const waveAmplitude = opts?.amplitude ?? 15;
   const timeScale = opts?.timeScale ?? 2;
+  const delta: DisplacementDelta = { dx: 0, dy: 0 };
   return (particle, ctx) => {
     const dist = particle.baseX * dirCos + particle.baseY * dirSin;
     const phase = dist * propagation - ctx.time * timeScale;
     const wave = Math.max(0, Math.sin(phase));
     const push = wave * wave * waveAmplitude;
-    return { dx: push * dirCos, dy: push * dirSin };
+    delta.dx = push * dirCos;
+    delta.dy = push * dirSin;
+    return delta;
   };
 }
 
