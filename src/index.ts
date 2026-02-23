@@ -679,14 +679,42 @@ export class WordWaveEngine {
     const { frequency, speed } = this.config;
     const effects = this.config.effects;
 
-    // Reusable objects to avoid per-frame allocation
+    // Compose the effect pipeline into a single monomorphic function so the
+    // hot loop has one inlineable call instead of a polymorphic inner loop.
     const effectCtx: EffectContext = {
       time: 0,
       canvasWidth: 0,
       canvasHeight: 0,
-      sampleNoise: (x: number, y: number) => this.sampleNoiseGrid(x, y),
+      sampleNoise: this.sampleNoiseGrid.bind(this),
     };
-    const effectParticle: EffectParticle = { baseX: 0, baseY: 0, dx: 0, dy: 0 };
+    type MutableParticle = {
+      -readonly [K in keyof EffectParticle]: EffectParticle[K];
+    };
+    const applyEffects = ((fns: DisplacementEffect[]) => {
+      const n = fns.length;
+      if (n === 0) {
+        return (p: Particle) => {
+          p.renderX = p.baseX;
+          p.renderY = p.baseY;
+        };
+      }
+      const ep: MutableParticle = { baseX: 0, baseY: 0, dx: 0, dy: 0 };
+      return (p: Particle, ctx: EffectContext) => {
+        ep.baseX = p.baseX;
+        ep.baseY = p.baseY;
+        let dx = 0,
+          dy = 0;
+        for (let i = 0; i < n; i++) {
+          ep.dx = dx;
+          ep.dy = dy;
+          const d = fns[i](ep, ctx);
+          dx += d.dx;
+          dy += d.dy;
+        }
+        p.renderX = p.baseX + dx;
+        p.renderY = p.baseY + dy;
+      };
+    })(effects);
 
     const animate = () => {
       if (!this.isVisible || this.destroyed) {
@@ -712,22 +740,10 @@ export class WordWaveEngine {
       (effectCtx as { canvasHeight: number }).canvasHeight =
         canvas.height / this.dpr;
 
-      // Compute particle positions via effect pipeline
+      // Compute particle positions via composed effect pipeline
       const particles = this.particles;
       for (const p of particles) {
-        (effectParticle as { baseX: number }).baseX = p.baseX;
-        (effectParticle as { baseY: number }).baseY = p.baseY;
-        let dx = 0,
-          dy = 0;
-        for (const effect of effects) {
-          (effectParticle as { dx: number }).dx = dx;
-          (effectParticle as { dy: number }).dy = dy;
-          const delta = effect(effectParticle, effectCtx);
-          dx += delta.dx;
-          dy += delta.dy;
-        }
-        p.renderX = p.baseX + dx;
-        p.renderY = p.baseY + dy;
+        applyEffects(p, effectCtx);
       }
 
       // Render
