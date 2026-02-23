@@ -10,7 +10,7 @@ import { WebGLRenderer } from './webgl-renderer';
 //   • Pre-built glyph atlas for both characters and whole words
 //   • Automatic Canvas 2D fallback when WebGL is unavailable
 //   • Simplex noise sampled on a coarse grid and bilinearly interpolated per particle
-//   • Directional "beach wave" effect layered on top of the noise field
+//   • Configurable displacement effect pipeline (noise, waves, custom effects)
 //   • Automatic IntersectionObserver pause when off-screen
 //   • ResizeObserver for responsive canvas sizing
 //   • prefers-reduced-motion support (renders a static pattern)
@@ -22,6 +22,7 @@ import { WebGLRenderer } from './webgl-renderer';
 //   const engine = new WordWaveEngine(canvas, {
 //     words: ['dark_mode', 'feature_flag', 'rollout'],
 //     speed: 0.015,
+//     effects: [noise({ amplitude: 8 }), directionalWave({ direction: 180 })],
 //   });
 //
 //   // Later:
@@ -51,9 +52,6 @@ export interface WordWaveOptions {
   /** Noise field spatial frequency. Lower = smoother, larger-scale movement. */
   frequency: number;
 
-  /** Maximum noise-driven displacement in CSS pixels. */
-  amplitude: number;
-
   /** Animation speed — how fast the noise field evolves over time. */
   speed: number;
 
@@ -62,15 +60,6 @@ export interface WordWaveOptions {
 
   /** Vertical spacing between rows (CSS px). */
   spacingY: number;
-
-  /** Wave propagation direction in degrees (0 = right, 90 = up, 225 = bottom-left). */
-  direction: number;
-
-  /** Wave density — higher values show more wave crests simultaneously. */
-  propagation: number;
-
-  /** How far the directional wave pushes particles (CSS px). */
-  waveAmplitude: number;
 
   /** CSS font shorthand string. */
   font: string;
@@ -83,7 +72,38 @@ export interface WordWaveOptions {
 
   /** Whether displacement is applied per character or per word. */
   mode: 'character' | 'word';
+
+  /** Displacement pipeline. Defaults to [noise(), directionalWave()]. Pass [] for no displacement. */
+  effects: DisplacementEffect[];
 }
+
+/** Read-only context available to every effect, refreshed each frame. */
+export interface EffectContext {
+  readonly time: number;
+  readonly canvasWidth: number;
+  readonly canvasHeight: number;
+  /** Sample the pre-computed noise grid at CSS-pixel coordinates. */
+  readonly sampleNoise: (x: number, y: number) => number;
+}
+
+/** Read-only snapshot of a particle passed to each effect. */
+export interface EffectParticle {
+  readonly baseX: number;
+  readonly baseY: number;
+  /** Accumulated displacement so far from earlier effects in the pipeline. */
+  readonly dx: number;
+  readonly dy: number;
+}
+
+/** What an effect returns — the displacement it contributes. */
+export interface DisplacementDelta {
+  dx: number;
+  dy: number;
+}
+
+/** A single displacement effect. */
+export type DisplacementEffect =
+  (particle: EffectParticle, ctx: EffectContext) => DisplacementDelta;
 
 /** Fallback words shown when no words are supplied. */
 export const DEFAULT_WORDS: readonly string[] = ['No', 'Words', 'Supplied!'];
@@ -134,17 +154,14 @@ const NOISE_GRID_CELL = 50;
 const DEFAULTS: WordWaveOptions = {
   words: [...DEFAULT_WORDS],
   frequency: 0.008,
-  amplitude: 10,
   speed: 0.01,
   spacingX: 90,
   spacingY: 20,
-  direction: 225,
-  propagation: 0.03,
-  waveAmplitude: 15,
   font: '14px system-ui, -apple-system, sans-serif',
   respectReducedMotion: true,
   pauseOffScreen: true,
   mode: 'character',
+  effects: [noise(), directionalWave()],
 };
 
 type GridIterator = (
@@ -159,11 +176,60 @@ type GridIterator = (
   ) => void,
 ) => void;
 
+// ── Built-in displacement effects ────────────────────────────────────────────
+
+/** Options for the built-in noise displacement effect. */
+export interface NoiseEffectOptions {
+  /** Maximum noise-driven displacement in CSS pixels. Default: 10 */
+  amplitude?: number;
+  /** Vertical noise scale factor. Default: 0.6 */
+  verticalScale?: number;
+}
+
+/** Create a noise displacement effect. */
+export function noise(opts?: NoiseEffectOptions): DisplacementEffect {
+  const amplitude = opts?.amplitude ?? 10;
+  const verticalScale = opts?.verticalScale ?? 0.6;
+  return (particle, ctx) => ({
+    dx: ctx.sampleNoise(particle.baseX, particle.baseY) * amplitude,
+    dy: ctx.sampleNoise(particle.baseX, particle.baseY) * verticalScale * amplitude,
+  });
+}
+
+/** Options for the built-in directional wave effect. */
+export interface DirectionalWaveOptions {
+  /** Wave propagation direction in degrees (0 = right, 90 = up, 225 = bottom-left). Default: 225 */
+  direction?: number;
+  /** Wave density. Default: 0.03 */
+  propagation?: number;
+  /** How far the wave pushes particles (CSS px). Default: 15 */
+  amplitude?: number;
+  /** Time multiplier for wave speed. Default: 2 */
+  timeScale?: number;
+}
+
+/** Create a directional wave displacement effect. */
+export function directionalWave(opts?: DirectionalWaveOptions): DisplacementEffect {
+  const dirRad = ((opts?.direction ?? 225) * Math.PI) / 180;
+  const dirCos = Math.cos(dirRad);
+  const dirSin = Math.sin(dirRad);
+  const propagation = opts?.propagation ?? 0.03;
+  const waveAmplitude = opts?.amplitude ?? 15;
+  const timeScale = opts?.timeScale ?? 2;
+  return (particle, ctx) => {
+    const dist = particle.baseX * dirCos + particle.baseY * dirSin;
+    const phase = dist * propagation - ctx.time * timeScale;
+    const wave = Math.max(0, Math.sin(phase));
+    const push = wave * wave * waveAmplitude;
+    return { dx: push * dirCos, dy: push * dirSin };
+  };
+}
+
 // ── Engine ────────────────────────────────────────────────────────────────────
 
 /**
  * A high-performance canvas animation engine that renders floating text
- * particles driven by 3D simplex noise and a directional wave field.
+ * particles driven by a configurable pipeline of displacement effects.
  *
  * The engine is **framework-agnostic** — it operates on a raw
  * `HTMLCanvasElement` and manages its own observers and animation loop.
@@ -243,6 +309,7 @@ export class WordWaveEngine {
       ...DEFAULTS,
       ...options,
       words: [...(options?.words ?? DEFAULTS.words)],
+      effects: [...(options?.effects ?? DEFAULTS.effects)],
     };
     this.init();
   }
@@ -594,19 +661,22 @@ export class WordWaveEngine {
     if (this.animationFrameId !== null) return;
 
     // Capture config + references as locals for the hot path.
-    // This is why options are immutable after construction — these closures
-    // read the values set at init time and never re-check this.config.
     const canvas = this.canvas;
     const atlas = this.atlas;
     const atlasPhysH = this.atlasPhysHeight;
     const cellH = this.atlasCellHeight;
     const halfH = this.atlasHalfHeight;
-    const { frequency, amplitude, speed, propagation, waveAmplitude } =
-      this.config;
+    const { frequency, speed } = this.config;
+    const effects = this.config.effects;
 
-    const dirRad = (this.config.direction * Math.PI) / 180;
-    const dirCos = Math.cos(dirRad);
-    const dirSin = Math.sin(dirRad);
+    // Reusable objects to avoid per-frame allocation
+    const effectCtx: EffectContext = {
+      time: 0,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      sampleNoise: (x: number, y: number) => this.sampleNoiseGrid(x, y),
+    };
+    const effectParticle: EffectParticle = { baseX: 0, baseY: 0, dx: 0, dy: 0 };
 
     const animate = () => {
       if (!this.isVisible || this.destroyed) {
@@ -625,16 +695,26 @@ export class WordWaveEngine {
         }
       }
 
-      // Compute particle positions
+      // Update effect context for this frame
+      (effectCtx as { time: number }).time = this.time;
+      (effectCtx as { canvasWidth: number }).canvasWidth = canvas.width / this.dpr;
+      (effectCtx as { canvasHeight: number }).canvasHeight = canvas.height / this.dpr;
+
+      // Compute particle positions via effect pipeline
       const particles = this.particles;
       for (const p of particles) {
-        const noise = this.sampleNoiseGrid(p.baseX, p.baseY);
-        const dist = p.baseX * dirCos + p.baseY * dirSin;
-        const phase = dist * propagation - this.time * 2;
-        const wave = Math.max(0, Math.sin(phase));
-        const push = wave * wave * waveAmplitude;
-        p.renderX = p.baseX + noise * amplitude + push * dirCos;
-        p.renderY = p.baseY + noise * 0.6 * amplitude + push * dirSin;
+        (effectParticle as { baseX: number }).baseX = p.baseX;
+        (effectParticle as { baseY: number }).baseY = p.baseY;
+        let dx = 0, dy = 0;
+        for (const effect of effects) {
+          (effectParticle as { dx: number }).dx = dx;
+          (effectParticle as { dy: number }).dy = dy;
+          const delta = effect(effectParticle, effectCtx);
+          dx += delta.dx;
+          dy += delta.dy;
+        }
+        p.renderX = p.baseX + dx;
+        p.renderY = p.baseY + dy;
       }
 
       // Render
