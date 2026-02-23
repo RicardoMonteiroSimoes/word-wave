@@ -1,4 +1,9 @@
-import { WordWaveEngine, WordWaveOptions, noise, directionalWave } from 'word-wave';
+import {
+  WordWaveEngine,
+  WordWaveOptions,
+  noise,
+  directionalWave,
+} from 'word-wave';
 
 const canvas = document.getElementById('wave-canvas') as HTMLCanvasElement;
 const modeSelect = document.getElementById('opt-mode') as HTMLSelectElement;
@@ -40,7 +45,12 @@ const sliders: Record<string, keyof WordWaveOptions> = {
 };
 
 // Effect-pipeline slider ids (read manually in getOptions)
-const effectSliderIds = ['amplitude', 'waveAmplitude', 'direction', 'propagation'] as const;
+const effectSliderIds = [
+  'amplitude',
+  'waveAmplitude',
+  'direction',
+  'propagation',
+] as const;
 
 function getOptions(): Partial<WordWaveOptions> {
   const wordsInput = document.getElementById('opt-words') as HTMLInputElement;
@@ -70,7 +80,12 @@ function getOptions(): Partial<WordWaveOptions> {
     pauseOffScreen: true,
     effects: [
       noise({ amplitude: amplitude, verticalScale: 0.6 }),
-      directionalWave({ direction: direction, propagation: propagation, amplitude: waveAmplitude, timeScale: 2 }),
+      directionalWave({
+        direction: direction,
+        propagation: propagation,
+        amplitude: waveAmplitude,
+        timeScale: 2,
+      }),
     ],
   };
 

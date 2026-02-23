@@ -102,8 +102,10 @@ export interface DisplacementDelta {
 }
 
 /** A single displacement effect. */
-export type DisplacementEffect =
-  (particle: EffectParticle, ctx: EffectContext) => DisplacementDelta;
+export type DisplacementEffect = (
+  particle: EffectParticle,
+  ctx: EffectContext,
+) => DisplacementDelta;
 
 /** Fallback words shown when no words are supplied. */
 export const DEFAULT_WORDS: readonly string[] = ['No', 'Words', 'Supplied!'];
@@ -192,7 +194,10 @@ export function noise(opts?: NoiseEffectOptions): DisplacementEffect {
   const verticalScale = opts?.verticalScale ?? 0.6;
   return (particle, ctx) => ({
     dx: ctx.sampleNoise(particle.baseX, particle.baseY) * amplitude,
-    dy: ctx.sampleNoise(particle.baseX, particle.baseY) * verticalScale * amplitude,
+    dy:
+      ctx.sampleNoise(particle.baseX, particle.baseY) *
+      verticalScale *
+      amplitude,
   });
 }
 
@@ -209,7 +214,9 @@ export interface DirectionalWaveOptions {
 }
 
 /** Create a directional wave displacement effect. */
-export function directionalWave(opts?: DirectionalWaveOptions): DisplacementEffect {
+export function directionalWave(
+  opts?: DirectionalWaveOptions,
+): DisplacementEffect {
   const dirRad = ((opts?.direction ?? 225) * Math.PI) / 180;
   const dirCos = Math.cos(dirRad);
   const dirSin = Math.sin(dirRad);
@@ -697,15 +704,18 @@ export class WordWaveEngine {
 
       // Update effect context for this frame
       (effectCtx as { time: number }).time = this.time;
-      (effectCtx as { canvasWidth: number }).canvasWidth = canvas.width / this.dpr;
-      (effectCtx as { canvasHeight: number }).canvasHeight = canvas.height / this.dpr;
+      (effectCtx as { canvasWidth: number }).canvasWidth =
+        canvas.width / this.dpr;
+      (effectCtx as { canvasHeight: number }).canvasHeight =
+        canvas.height / this.dpr;
 
       // Compute particle positions via effect pipeline
       const particles = this.particles;
       for (const p of particles) {
         (effectParticle as { baseX: number }).baseX = p.baseX;
         (effectParticle as { baseY: number }).baseY = p.baseY;
-        let dx = 0, dy = 0;
+        let dx = 0,
+          dy = 0;
         for (const effect of effects) {
           (effectParticle as { dx: number }).dx = dx;
           (effectParticle as { dy: number }).dy = dy;

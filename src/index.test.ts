@@ -246,8 +246,8 @@ describe('noise()', () => {
     const delta = effect(particle, ctx);
     expect(delta).toHaveProperty('dx');
     expect(delta).toHaveProperty('dy');
-    expect(delta.dx).toBe(5);  // 0.5 * 10
-    expect(delta.dy).toBe(2.5);  // 0.5 * 0.5 * 10
+    expect(delta.dx).toBe(5); // 0.5 * 10
+    expect(delta.dy).toBe(2.5); // 0.5 * 0.5 * 10
   });
 });
 
@@ -258,7 +258,12 @@ describe('directionalWave()', () => {
   });
 
   it('returns displacement deltas', () => {
-    const effect = directionalWave({ direction: 0, propagation: 0, amplitude: 10, timeScale: 0 });
+    const effect = directionalWave({
+      direction: 0,
+      propagation: 0,
+      amplitude: 10,
+      timeScale: 0,
+    });
     const ctx: EffectContext = {
       time: 0,
       canvasWidth: 800,
