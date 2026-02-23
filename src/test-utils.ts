@@ -3,16 +3,16 @@
  * happy-dom doesn't implement getBoundingClientRect on plain divs,
  * so we stub it to simulate an 800 × 600 viewport.
  */
-export function createCanvas(): HTMLCanvasElement {
+export function createCanvas(width = 800, height = 600): HTMLCanvasElement {
   const container = document.createElement('div');
   Object.defineProperty(container, 'getBoundingClientRect', {
     value: () => ({
-      width: 800,
-      height: 600,
+      width,
+      height,
       top: 0,
       left: 0,
-      right: 800,
-      bottom: 600,
+      right: width,
+      bottom: height,
       x: 0,
       y: 0,
       toJSON: () => ({}),

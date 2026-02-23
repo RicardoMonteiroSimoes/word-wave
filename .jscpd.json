@@ -3,5 +3,5 @@
   "minLines": 5,
   "minTokens": 50,
   "reporters": ["console"],
-  "ignore": ["node_modules", "dist", "demo/dist"]
+  "ignore": ["node_modules", "dist", "demo/dist", "src/**/*.bench.ts"]
 }

@@ -108,18 +108,9 @@ describe('WordWaveEngine', () => {
     }).not.toThrow();
   });
 
-  it('word mode skips atlas building', () => {
-    engine = new WordWaveEngine(canvas, { mode: 'word' });
-    // In word mode, buildAtlas() is never called — so no font-metrics warning fires.
-    const atlasWarnings = warnSpy.mock.calls.filter(
-      (args) => typeof args[0] === 'string' && args[0].includes('font metrics'),
-    );
-    expect(atlasWarnings).toHaveLength(0);
-  });
-
-  it('character mode attempts atlas building', () => {
-    engine = new WordWaveEngine(canvas);
-    // happy-dom has no 2D context, so buildAtlas() warns about font metrics.
+  it.each(['character', 'word'] as const)('%s mode builds atlas', (mode) => {
+    engine = new WordWaveEngine(canvas, { mode });
+    // Both modes build an atlas — happy-dom has no 2D context, so it warns.
     const atlasWarnings = warnSpy.mock.calls.filter(
       (args) => typeof args[0] === 'string' && args[0].includes('font metrics'),
     );

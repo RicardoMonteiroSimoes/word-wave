@@ -27,6 +27,9 @@
     "bench": "vitest bench",
     "bench:save": "vitest bench --outputJson bench-baseline.json",
     "bench:compare": "vitest bench --compare bench-baseline.json",
+    "bench:browser": "vitest bench --config vitest.browser.config.ts",
+    "bench:browser:save": "vitest bench --config vitest.browser.config.ts --outputJson bench-browser-baseline.json",
+    "bench:browser:compare": "vitest bench --config vitest.browser.config.ts --compare bench-browser-baseline.json",
     "check": "tsc --noEmit && eslint src/ demo/ && prettier --check src/ demo/ && knip && jscpd src/ && vitest run",
     "demo": "vite",
     "demo:build": "vite build",
@@ -53,6 +56,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@vitest/browser-playwright": "^4.0.18",
     "eslint": "^10.0.0",
     "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.6.2",

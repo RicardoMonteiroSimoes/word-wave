@@ -57,11 +57,11 @@ globalThis.cancelAnimationFrame = () => {};
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const WORDS = [
+  'premium_tier',
   'dark_mode',
-  'feature_flag',
-  'rollout',
-  'beta_test',
-  'analytics',
+  'ai_assistant',
+  'beta_analytics',
+  'edge_caching',
 ];
 
 // ── Setup: long-lived engines for frame benchmarks ──────────────────────────

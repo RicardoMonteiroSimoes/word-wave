@@ -136,73 +136,104 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: Baseline benchmarks (main)
         id: baseline
         continue-on-error: true
         run: npx vitest bench --outputJson /tmp/bench-baseline.json
+      - name: Baseline browser benchmarks (main)
+        id: baseline-browser
+        continue-on-error: true
+        run: npx vitest bench --config vitest.browser.config.ts --outputJson /tmp/bench-browser-baseline.json
 
       # 2. PR branch: checkout and run benchmarks
       - uses: actions/checkout@v4
         with:
           clean: false
       - run: npm ci
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
       - name: PR benchmarks
         id: bench
         run: npx vitest bench --outputJson /tmp/bench-pr.json
+      - name: PR browser benchmarks
+        id: bench-browser
+        run: npx vitest bench --config vitest.browser.config.ts --outputJson /tmp/bench-browser-pr.json
 
       # 3. Build comparison table and post as PR comment
       - name: Post benchmark results
-        if: always() && steps.bench.outcome == 'success'
+        if: always() && (steps.bench.outcome == 'success' || steps.bench-browser.outcome == 'success')
         run: |
           node -e '
           const fs = require("fs");
 
-          const pr = JSON.parse(fs.readFileSync("/tmp/bench-pr.json", "utf8"));
-          const prBenches = pr.files.flatMap(f => f.groups.flatMap(g => g.benchmarks));
-
-          let hasBaseline = false;
-          let baseMap = new Map();
-          try {
-            const base = JSON.parse(fs.readFileSync("/tmp/bench-baseline.json", "utf8"));
-            for (const b of base.files.flatMap(f => f.groups.flatMap(g => g.benchmarks))) {
-              baseMap.set(b.name, b);
-            }
-            hasBaseline = baseMap.size > 0;
-          } catch {}
+          function loadBenches(path) {
+            try {
+              const data = JSON.parse(fs.readFileSync(path, "utf8"));
+              return data.files.flatMap(f => f.groups.flatMap(g => g.benchmarks));
+            } catch { return []; }
+          }
 
           function fmt(n) {
             return n >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 0 })
                              : n.toFixed(2);
           }
 
-          let rows = [];
-          for (const b of prBenches) {
-            const base = baseMap.get(b.name);
-            if (hasBaseline && base) {
-              const change = ((b.hz - base.hz) / base.hz) * 100;
-              const sign = change >= 0 ? "+" : "";
-              const icon = Math.abs(change) < 2 ? "~" : change > 0 ? ":arrow_up:" : ":arrow_down:";
-              rows.push(
-                "| " + b.name +
-                " | " + fmt(base.hz) +
-                " | " + fmt(b.hz) +
-                " | " + sign + change.toFixed(1) + "%" +
-                " | " + icon + " |"
-              );
-            } else {
-              rows.push(
-                "| " + b.name +
-                " | — | " + fmt(b.hz) +
-                " | — | |"
-              );
+          function buildTable(label, prBenches, baseBenches) {
+            if (prBenches.length === 0) return [];
+
+            const baseMap = new Map();
+            for (const b of baseBenches) baseMap.set(b.name, b);
+            const hasBaseline = baseMap.size > 0;
+
+            const rows = [];
+            for (const b of prBenches) {
+              const base = baseMap.get(b.name);
+              if (hasBaseline && base) {
+                const change = ((b.hz - base.hz) / base.hz) * 100;
+                const sign = change >= 0 ? "+" : "";
+                const icon = Math.abs(change) < 2 ? "~" : change > 0 ? ":arrow_up:" : ":arrow_down:";
+                rows.push(
+                  "| " + b.name +
+                  " | " + fmt(base.hz) +
+                  " | " + fmt(b.hz) +
+                  " | " + sign + change.toFixed(1) + "%" +
+                  " | " + icon + " |"
+                );
+              } else {
+                rows.push(
+                  "| " + b.name +
+                  " | — | " + fmt(b.hz) +
+                  " | — | |"
+                );
+              }
             }
+
+            return [
+              "### " + label,
+              "",
+              "| Benchmark | main (ops/s) | PR (ops/s) | Change | |",
+              "|---|--:|--:|--:|---|",
+              ...rows,
+            ];
           }
 
-          const header = hasBaseline
-            ? "| Benchmark | main (ops/s) | PR (ops/s) | Change | |\n|---|--:|--:|--:|---|"
-            : "| Benchmark | main (ops/s) | PR (ops/s) | Change | |\n|---|--:|--:|--:|---|";
+          const sections = [
+            ...buildTable("Computation (happy-dom)",
+              loadBenches("/tmp/bench-pr.json"),
+              loadBenches("/tmp/bench-baseline.json")),
+            "",
+            ...buildTable("Rendering (browser)",
+              loadBenches("/tmp/bench-browser-pr.json"),
+              loadBenches("/tmp/bench-browser-baseline.json")),
+          ];
 
-          const note = hasBaseline
+          const hasAnyBaseline =
+            loadBenches("/tmp/bench-baseline.json").length > 0 ||
+            loadBenches("/tmp/bench-browser-baseline.json").length > 0;
+
+          const note = hasAnyBaseline
             ? "_~ means within noise (< 2%). Measured on CI — relative changes matter, absolute numbers vary between runs._"
             : "_No baseline available on main — showing PR results only. Comparison will appear on future PRs._";
 
@@ -210,8 +241,7 @@ jobs:
             "<!-- benchmark-results -->",
             "## Benchmark Results",
             "",
-            header,
-            ...rows,
+            ...sections,
             "",
             note,
           ].join("\n");
