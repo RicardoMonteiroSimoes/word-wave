@@ -143,6 +143,71 @@ describe('WordWaveEngine', () => {
       engine = new WordWaveEngine(canvas);
     }).not.toThrow();
   });
+
+  describe('with effects option', () => {
+    it('constructs without throwing when effects is provided', () => {
+      const effects: Effect[] = [{ type: 'noise' }];
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects });
+      }).not.toThrow();
+    });
+
+    it('constructs with a single noise effect', () => {
+      const effects: Effect[] = [
+        { type: 'noise', amplitude: 8, frequency: 0.01 },
+      ];
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects });
+      }).not.toThrow();
+    });
+
+    it('constructs with multiple stacked effects', () => {
+      const effects: Effect[] = [
+        { type: 'noise', amplitude: 10 },
+        { type: 'wave', direction: 180, amplitude: 20 },
+        { type: 'pulse', centerX: 0.5, centerY: 0.5 },
+      ];
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects });
+      }).not.toThrow();
+    });
+
+    it('constructs with a custom glsl effect', () => {
+      const effects: Effect[] = [
+        {
+          type: 'glsl',
+          params: { u_freq: 0.05, u_amp: 12.0 },
+          code: 'd = vec2(sin(pos.x * u_freq + u_time) * u_amp, 0.0);',
+        },
+      ];
+      expect(() => {
+        engine = new WordWaveEngine(canvas, { effects });
+      }).not.toThrow();
+    });
+
+    it('destroy() works with effects', () => {
+      const effects: Effect[] = [{ type: 'wave' }];
+      engine = new WordWaveEngine(canvas, { effects });
+      expect(() => engine.destroy()).not.toThrow();
+    });
+
+    it('start() and stop() work with effects', () => {
+      const effects: Effect[] = [{ type: 'noise' }, { type: 'wave' }];
+      engine = new WordWaveEngine(canvas, { effects });
+      expect(() => {
+        engine.start();
+        engine.stop();
+      }).not.toThrow();
+    });
+  });
+
+  describe('backward compatibility', () => {
+    it('constructs without effects option (uses default effects)', () => {
+      expect(() => {
+        engine = new WordWaveEngine(canvas);
+      }).not.toThrow();
+    });
+  });
 });
 
 describe('Effects system: shader generation', () => {
@@ -271,96 +336,5 @@ describe('Effects system: shader generation', () => {
       // Check pulse (fx2)
       expect(values.u_fx2_amp).toBe(12);
     });
-  });
-});
-
-describe('WordWaveEngine with effects option', () => {
-  let canvas: HTMLCanvasElement;
-  let engine: WordWaveEngine;
-
-  beforeEach(() => {
-    warnSpy.mockClear();
-    canvas = createCanvas();
-  });
-
-  afterEach(() => {
-    engine?.destroy();
-    canvas.parentElement?.remove();
-  });
-
-  it('constructs without throwing when effects is provided', () => {
-    const effects: Effect[] = [{ type: 'noise' }];
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects });
-    }).not.toThrow();
-  });
-
-  it('constructs with a single noise effect', () => {
-    const effects: Effect[] = [
-      { type: 'noise', amplitude: 8, frequency: 0.01 },
-    ];
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects });
-    }).not.toThrow();
-  });
-
-  it('constructs with multiple stacked effects', () => {
-    const effects: Effect[] = [
-      { type: 'noise', amplitude: 10 },
-      { type: 'wave', direction: 180, amplitude: 20 },
-      { type: 'pulse', centerX: 0.5, centerY: 0.5 },
-    ];
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects });
-    }).not.toThrow();
-  });
-
-  it('constructs with a custom glsl effect', () => {
-    const effects: Effect[] = [
-      {
-        type: 'glsl',
-        params: { u_freq: 0.05, u_amp: 12.0 },
-        code: 'd = vec2(sin(pos.x * u_freq + u_time) * u_amp, 0.0);',
-      },
-    ];
-    expect(() => {
-      engine = new WordWaveEngine(canvas, { effects });
-    }).not.toThrow();
-  });
-
-  it('destroy() works with effects', () => {
-    const effects: Effect[] = [{ type: 'wave' }];
-    engine = new WordWaveEngine(canvas, { effects });
-    expect(() => engine.destroy()).not.toThrow();
-  });
-
-  it('start() and stop() work with effects', () => {
-    const effects: Effect[] = [{ type: 'noise' }, { type: 'wave' }];
-    engine = new WordWaveEngine(canvas, { effects });
-    expect(() => {
-      engine.start();
-      engine.stop();
-    }).not.toThrow();
-  });
-});
-
-describe('Backward compatibility', () => {
-  let canvas: HTMLCanvasElement;
-  let engine: WordWaveEngine;
-
-  beforeEach(() => {
-    warnSpy.mockClear();
-    canvas = createCanvas();
-  });
-
-  afterEach(() => {
-    engine?.destroy();
-    canvas.parentElement?.remove();
-  });
-
-  it('constructs without effects option (uses default effects)', () => {
-    expect(() => {
-      engine = new WordWaveEngine(canvas);
-    }).not.toThrow();
   });
 });
