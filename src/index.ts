@@ -1,4 +1,6 @@
 import { createNoise3D } from 'simplex-noise';
+import type { Effect } from './effects.js';
+import { generateShaders, extractUniformValues } from './shader-gen.js';
 import { WebGLRenderer } from './webgl-renderer';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,10 +85,35 @@ export interface WordWaveOptions {
 
   /** Whether displacement is applied per character or per word. */
   mode: 'character' | 'word';
+
+  /**
+   * GPU displacement effects computed in the vertex shader.
+   *
+   * When provided, displacement is computed entirely on the GPU — the CPU
+   * animation loop reduces to a single uniform update per frame. Effects
+   * compose additively: each contributes a `vec2` displacement.
+   *
+   * When omitted, the engine uses the legacy CPU-based displacement path
+   * (controlled by `frequency`, `amplitude`, `speed`, `direction`,
+   * `propagation`, and `waveAmplitude`).
+   *
+   * Effects require WebGL 2. If WebGL is unavailable, the canvas fallback
+   * renders a static grid without displacement.
+   */
+  effects?: Effect[];
 }
 
 /** Fallback words shown when no words are supplied. */
 export const DEFAULT_WORDS: readonly string[] = ['No', 'Words', 'Supplied!'];
+
+export type { Effect } from './effects.js';
+export {
+  type NoiseEffect,
+  type WaveEffect,
+  type PulseEffect,
+  type GlslEffect,
+  DEFAULT_EFFECTS,
+} from './effects.js';
 
 // ── Internal types ───────────────────────────────────────────────────────────
 
@@ -218,6 +245,8 @@ export class WordWaveEngine {
 
   // WebGL instanced renderer (null = Canvas 2D fallback)
   private renderer: WebGLRenderer | null = null;
+  // Pre-computed effect uniform values (effects mode only)
+  private effectUniformValues: Record<string, number> = {};
   // Offscreen context for text measurement (avoids touching the main canvas context)
   private measureCtx: CanvasRenderingContext2D | null = null;
 
@@ -325,7 +354,24 @@ export class WordWaveEngine {
 
     // Attempt WebGL instanced rendering; fall back to Canvas 2D
     try {
-      this.renderer = new WebGLRenderer(this.canvas);
+      const effects = this.config.effects;
+      if (effects && effects.length > 0) {
+        try {
+          const generated = generateShaders(effects);
+          this.renderer = new WebGLRenderer(this.canvas, generated);
+          this.effectUniformValues = extractUniformValues(effects);
+        } catch (shaderErr) {
+          // Shader compilation failed — fall back to legacy WebGL (not null,
+          // because the canvas context is already locked to webgl2).
+          console.warn(
+            'word-wave: effects shader failed, falling back to legacy rendering',
+            shaderErr,
+          );
+          this.renderer = new WebGLRenderer(this.canvas);
+        }
+      } else {
+        this.renderer = new WebGLRenderer(this.canvas);
+      }
       if (this.atlas) this.renderer.uploadAtlas(this.atlas);
     } catch {
       this.renderer = null;
@@ -544,12 +590,21 @@ export class WordWaveEngine {
 
     // Upload static per-instance data to WebGL renderer
     if (this.renderer && this.atlas) {
-      this.renderer.uploadStaticData(
-        this.particles,
-        this.atlas.width,
-        this.atlasCellHeight,
-        this.atlasHalfHeight,
-      );
+      if (this.renderer.effectsMode) {
+        this.renderer.uploadEffectsData(
+          this.particles,
+          this.atlas.width,
+          this.atlasCellHeight,
+          this.atlasHalfHeight,
+        );
+      } else {
+        this.renderer.uploadStaticData(
+          this.particles,
+          this.atlas.width,
+          this.atlasCellHeight,
+          this.atlasHalfHeight,
+        );
+      }
     }
   }
 
@@ -593,6 +648,32 @@ export class WordWaveEngine {
     }
     if (this.animationFrameId !== null) return;
 
+    // GPU effects path — displacement computed entirely in the vertex shader
+    if (renderer?.effectsMode) {
+      const speed = this.config.speed ?? 0.01;
+      const uniformValues = this.effectUniformValues;
+
+      // Push effect parameter uniforms once (they don't change per frame)
+      renderer.setEffectUniforms(uniformValues);
+
+      const animateEffects = () => {
+        if (!this.isVisible || this.destroyed) {
+          this.animationFrameId = null;
+          return;
+        }
+
+        renderer.setTime(this.time);
+        renderer.draw();
+
+        this.time += speed;
+        this.animationFrameId = requestAnimationFrame(animateEffects);
+      };
+
+      animateEffects();
+      return;
+    }
+
+    // Legacy CPU path — displacement computed in JavaScript
     // Capture config + references as locals for the hot path.
     // This is why options are immutable after construction — these closures
     // read the values set at init time and never re-check this.config.

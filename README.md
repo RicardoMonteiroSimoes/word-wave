@@ -11,6 +11,7 @@ A high-performance canvas animation engine that renders floating text particles 
 ## Features
 
 - **WebGL 2 instanced rendering** — all particles drawn in a single GPU draw call, with automatic Canvas 2D fallback
+- **GPU displacement effects** — composable effects (noise, wave, pulse, custom GLSL) computed in the vertex shader
 - Pre-built glyph atlas for characters and whole words (no per-frame `fillText`)
 - Simplex noise sampled on a coarse grid and bilinearly interpolated per particle
 - Directional "beach wave" effect layered on top of the noise field
@@ -64,6 +65,111 @@ All fields are optional. Unspecified fields use sensible defaults.
 | `respectReducedMotion` | `boolean` | `true` | Static pattern if `prefers-reduced-motion: reduce` |
 | `pauseOffScreen` | `boolean` | `true` | Pause animation when canvas is not visible |
 | `mode` | `'character' \| 'word'` | `'character'` | Per-character or per-word displacement |
+
+## Effects
+
+Effects move displacement computation to the GPU vertex shader, enabling more complex visual patterns without CPU overhead. They compose additively: each effect contributes a displacement that is summed together. When `effects` is provided, the legacy displacement parameters (`frequency`, `amplitude`, `direction`, etc.) are ignored.
+
+### Basic usage
+
+Omitting `effects` preserves the existing CPU-based behavior. To use GPU effects, pass an array of effect descriptors:
+
+```ts
+const engine = new WordWaveEngine(canvas, {
+  words: ['hello', 'world'],
+  effects: [
+    { type: 'noise', frequency: 0.008, amplitude: 10 },
+    { type: 'wave', direction: 225, propagation: 0.03, amplitude: 15 },
+  ],
+});
+```
+
+### Built-in effects
+
+#### `noise`
+
+3D simplex noise displacement.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `frequency` | `number` | `0.008` | Spatial frequency — lower values produce larger-scale noise |
+| `amplitude` | `number` | `10` | Maximum displacement in CSS pixels |
+| `speed` | `number` | `0.01` | Time evolution rate |
+| `yScale` | `number` | `0.6` | Y-axis amplitude multiplier (relative to X) |
+
+#### `wave`
+
+Directional propagating wave.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `direction` | `number` | `225` | Wave direction in degrees (0 = right, 90 = down) |
+| `propagation` | `number` | `0.03` | Wave density — higher values produce more crests |
+| `amplitude` | `number` | `15` | Push distance in CSS pixels |
+| `speed` | `number` | `2.0` | Time multiplier for wave propagation speed |
+
+#### `pulse`
+
+Radial ripple expanding from a point.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `centerX` | `number` | `0.5` | Horizontal center (0–1 normalized to viewport) |
+| `centerY` | `number` | `0.5` | Vertical center (0–1 normalized to viewport) |
+| `frequency` | `number` | `0.05` | Ring spacing |
+| `amplitude` | `number` | `10` | Maximum displacement in CSS pixels |
+| `speed` | `number` | `1.0` | Time multiplier |
+
+### Composing effects
+
+Effects stack additively. Order doesn't affect the visual result. Combine multiple effects for richer motion:
+
+```ts
+const engine = new WordWaveEngine(canvas, {
+  words: ['composable', 'effects'],
+  effects: [
+    { type: 'noise', frequency: 0.005, amplitude: 8 },
+    { type: 'wave', direction: 45, propagation: 0.02, amplitude: 12 },
+    { type: 'wave', direction: 135, propagation: 0.025, amplitude: 10 },
+  ],
+});
+```
+
+### Custom GLSL
+
+The `glsl` effect type allows arbitrary vertex shader displacement code. Your snippet receives:
+
+- `pos` (vec2) — particle base position in CSS pixels
+- `time` (float) — elapsed time
+- `u_resolution` (vec2) — viewport size in CSS pixels
+- `d` (vec2) — must be assigned; this is the displacement contribution from this effect
+- `params` — each key becomes a float uniform accessible by name
+
+Example: horizontal sine wave with vertical bias
+
+```ts
+const engine = new WordWaveEngine(canvas, {
+  words: ['custom', 'displacement'],
+  effects: [
+    {
+      type: 'glsl',
+      params: { u_freq: 0.05, u_amp: 12.0, u_vbias: 0.003 },
+      code: `
+        float wave = sin(pos.x * u_freq + time) * u_amp;
+        d = vec2(wave, pos.y * u_vbias);
+      `,
+    },
+  ],
+});
+```
+
+### Canvas fallback
+
+Effects require WebGL 2. When using the Canvas 2D fallback renderer, a static grid is displayed instead of animated displacement.
+
+### Migration
+
+The `effects` option is fully optional. Omitting it preserves the existing CPU-based displacement behavior using the legacy parameters (`frequency`, `amplitude`, `direction`, etc.).
 
 ## Color & Opacity
 
