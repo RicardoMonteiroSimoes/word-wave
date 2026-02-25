@@ -119,6 +119,7 @@ jobs:
           gh pr edit "$PR_NUMBER" --add-reviewer "${{ github.repository_owner }}"
 
   benchmark:
+    needs: checks
     runs-on: ubuntu-latest
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository ||
