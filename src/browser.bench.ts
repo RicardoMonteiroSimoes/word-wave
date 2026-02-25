@@ -80,7 +80,7 @@ function generateNoiseEffects(count: number): Effect[] {
   }));
 }
 
-const EFFECT_TIERS = [5, 15, 30, 50] as const;
+const EFFECT_TIERS = [1, 5, 10, 15] as const;
 const effectCallbacks = new Map<number, FrameRequestCallback | null>();
 
 for (const count of EFFECT_TIERS) {
