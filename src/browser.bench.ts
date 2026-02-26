@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-empty-function */
 
 import { bench, describe } from 'vitest';
+import type { Effect } from './index';
 import { WordWaveEngine } from './index';
 
 // ── Capture animation frame callback ────────────────────────────────────────
@@ -67,6 +68,32 @@ new WordWaveEngine(wordCanvas, {
 });
 const wordFrameCallback = capture();
 
+// ── GPU effects scaling: engines with increasing noise effect counts ───────
+
+function generateNoiseEffects(count: number): Effect[] {
+  return Array.from({ length: count }, (_, i) => ({
+    type: 'noise' as const,
+    frequency: 0.005 + i * 0.0003,
+    amplitude: 3 + (i % 20) * 0.5,
+    speed: 0.005 + i * 0.001,
+    yScale: 0.2 + (i % 10) * 0.1,
+  }));
+}
+
+const EFFECT_TIERS = [1, 5, 10] as const;
+const effectCallbacks = new Map<number, FrameRequestCallback | null>();
+
+for (const count of EFFECT_TIERS) {
+  const canvas = createBenchCanvas();
+  new WordWaveEngine(canvas, {
+    words: WORDS,
+    mode: 'character',
+    effects: generateNoiseEffects(count),
+    pauseOffScreen: false,
+  });
+  effectCallbacks.set(count, capture());
+}
+
 // ── Benchmarks ──────────────────────────────────────────────────────────────
 // These run in a real browser via vitest browser mode. Unlike the happy-dom
 // benchmarks, canvas rendering calls (drawImage, fillText) hit a real 2D
@@ -80,4 +107,13 @@ describe('WordWaveEngine (browser)', () => {
   bench('single frame (word mode)', () => {
     if (wordFrameCallback) wordFrameCallback(performance.now());
   });
+});
+
+describe('GPU effects scaling', () => {
+  for (const count of EFFECT_TIERS) {
+    bench(`single frame — ${count} noise effects`, () => {
+      const cb = effectCallbacks.get(count);
+      if (cb) cb(performance.now());
+    });
+  }
 });

@@ -5,13 +5,26 @@
 // `drawArraysInstanced()` call. Each particle is a textured quad whose sprite
 // is looked up from the glyph atlas texture via per-instance UV attributes.
 //
-// Buffer layout:
+// Two modes:
+//   Legacy  — displacement computed on CPU, positions uploaded every frame.
+//   Effects — displacement computed in vertex shader via generated GLSL.
+//
+// Legacy buffer layout:
 //   • Quad geometry (6 vertices, shared)  — STATIC
 //   • Per-instance static data            — STATIC  (size, center, UV rect, opacity)
 //   • Per-instance position               — DYNAMIC (renderX, renderY — updated each frame)
+//
+// Effects buffer layout:
+//   • Quad geometry (6 vertices, shared)  — STATIC
+//   • Per-instance data                   — STATIC  (basePos, size, center, UV rect, opacity)
+//   (no dynamic buffer — displacement happens in the vertex shader)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const VERT = `#version 300 es
+import type { GeneratedShader } from './shader-gen.js';
+
+// ── Legacy shaders (used when no effects are configured) ─────────────────────
+
+const LEGACY_VERT = `#version 300 es
 precision highp float;
 
 in vec2 a_position;
@@ -35,7 +48,7 @@ void main() {
 }
 `;
 
-const FRAG = `#version 300 es
+const LEGACY_FRAG = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_atlas;
@@ -51,7 +64,9 @@ void main() {
 }
 `;
 
-/** Minimal particle shape required by the renderer. */
+// ── Particle interfaces ──────────────────────────────────────────────────────
+
+/** Minimal particle shape required by the legacy renderer path. */
 interface RenderableParticle {
   glyph: { sx: number; sw: number; cssW: number; cssHalfW: number };
   opacity: number;
@@ -59,15 +74,29 @@ interface RenderableParticle {
   renderY: number;
 }
 
-// Static stride: size(2) + center(2) + uv(4) + opacity(1) = 9 floats
-const STATIC_FLOATS = 9;
-const STATIC_STRIDE = STATIC_FLOATS * 4;
+/** Extended particle shape with base position for the effects path. */
+interface EffectsParticle extends RenderableParticle {
+  baseX: number;
+  baseY: number;
+}
+
+// ── Constants ────────────────────────────────────────────────────────────────
+
+// Legacy stride: size(2) + center(2) + uv(4) + opacity(1) = 9 floats
+const LEGACY_FLOATS = 9;
+const LEGACY_STRIDE = LEGACY_FLOATS * 4;
+
+// Effects stride: basePos(2) + size(2) + center(2) + uv(4) + opacity(1) = 11 floats
+const EFFECTS_FLOATS = 11;
+const EFFECTS_STRIDE = EFFECTS_FLOATS * 4;
 
 /** Throws with a descriptive message if a WebGL resource is null. */
 function glAssert<T>(value: T | null, name: string): T {
   if (value === null) throw new Error(`WebGL: failed to create ${name}`);
   return value;
 }
+
+// ── Renderer ─────────────────────────────────────────────────────────────────
 
 export class WebGLRenderer {
   private readonly gl: WebGL2RenderingContext;
@@ -76,21 +105,31 @@ export class WebGLRenderer {
   private texture: WebGLTexture | null = null;
   private quadBuf: WebGLBuffer;
   private staticBuf: WebGLBuffer;
-  private dynamicBuf: WebGLBuffer;
+  private dynamicBuf: WebGLBuffer | null = null;
   private projectionLoc: WebGLUniformLocation;
   private positionData: Float32Array = new Float32Array(0);
   private instanceCount = 0;
   private destroyed = false;
 
+  /** True when using generated shaders with GPU displacement. */
+  readonly effectsMode: boolean;
+
+  /** Cached uniform locations for effects mode. */
+  private uniformLocs = new Map<string, WebGLUniformLocation>();
+
   /** Throws if WebGL 2 is unavailable. Caller should catch and fall back. */
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, generated?: GeneratedShader) {
     const gl = canvas.getContext('webgl2', { antialias: false });
     if (!gl) throw new Error('WebGL2 not available');
     this.gl = gl;
+    this.effectsMode = !!generated;
+
+    const vertSource = generated ? generated.vertexSource : LEGACY_VERT;
+    const fragSource = generated ? generated.fragmentSource : LEGACY_FRAG;
 
     // ── Shaders ───────────────────────────────────────────────────────────
-    const vs = compile(gl, gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+    const vs = compile(gl, gl.VERTEX_SHADER, vertSource);
+    const fs = compile(gl, gl.FRAGMENT_SHADER, fragSource);
 
     const program = glAssert(gl.createProgram(), 'program');
     gl.attachShader(program, vs);
@@ -112,6 +151,14 @@ export class WebGLRenderer {
       gl.getUniformLocation(program, 'u_projection'),
       'u_projection uniform',
     );
+
+    // Cache effect uniform locations
+    if (generated) {
+      for (const name of generated.uniformNames) {
+        const loc = gl.getUniformLocation(program, name);
+        if (loc) this.uniformLocs.set(name, loc);
+      }
+    }
 
     // ── Blend (premultiplied alpha) ───────────────────────────────────────
     gl.enable(gl.BLEND);
@@ -136,15 +183,26 @@ export class WebGLRenderer {
     // Static per-instance buffer
     this.staticBuf = glAssert(gl.createBuffer(), 'static buffer');
     gl.bindBuffer(gl.ARRAY_BUFFER, this.staticBuf);
-    attr(gl, program, 'a_size', 2, STATIC_STRIDE, 0, 1);
-    attr(gl, program, 'a_center', 2, STATIC_STRIDE, 8, 1);
-    attr(gl, program, 'a_uv', 4, STATIC_STRIDE, 16, 1);
-    attr(gl, program, 'a_opacity', 1, STATIC_STRIDE, 32, 1);
 
-    // Dynamic per-instance buffer (positions)
-    this.dynamicBuf = glAssert(gl.createBuffer(), 'dynamic buffer');
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.dynamicBuf);
-    attr(gl, program, 'a_offset', 2, 0, 0, 1);
+    if (this.effectsMode) {
+      // Effects layout: basePos(2) + size(2) + center(2) + uv(4) + opacity(1)
+      attr(gl, program, 'a_basePosition', 2, EFFECTS_STRIDE, 0, 1);
+      attr(gl, program, 'a_size', 2, EFFECTS_STRIDE, 8, 1);
+      attr(gl, program, 'a_center', 2, EFFECTS_STRIDE, 16, 1);
+      attr(gl, program, 'a_uv', 4, EFFECTS_STRIDE, 24, 1);
+      attr(gl, program, 'a_opacity', 1, EFFECTS_STRIDE, 40, 1);
+    } else {
+      // Legacy layout: size(2) + center(2) + uv(4) + opacity(1)
+      attr(gl, program, 'a_size', 2, LEGACY_STRIDE, 0, 1);
+      attr(gl, program, 'a_center', 2, LEGACY_STRIDE, 8, 1);
+      attr(gl, program, 'a_uv', 4, LEGACY_STRIDE, 16, 1);
+      attr(gl, program, 'a_opacity', 1, LEGACY_STRIDE, 32, 1);
+
+      // Dynamic per-instance buffer (positions — legacy only)
+      this.dynamicBuf = glAssert(gl.createBuffer(), 'dynamic buffer');
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.dynamicBuf);
+      attr(gl, program, 'a_offset', 2, 0, 0, 1);
+    }
 
     gl.bindVertexArray(null);
   }
@@ -178,7 +236,7 @@ export class WebGLRenderer {
     gl.uniform1i(gl.getUniformLocation(this.program, 'u_atlas'), 0);
   }
 
-  // ── Per-instance data ─────────────────────────────────────────────────────
+  // ── Per-instance data (legacy) ─────────────────────────────────────────────
 
   uploadStaticData(
     particles: RenderableParticle[],
@@ -189,13 +247,13 @@ export class WebGLRenderer {
     const gl = this.gl;
     this.instanceCount = particles.length;
 
-    const data = new Float32Array(particles.length * STATIC_FLOATS);
+    const data = new Float32Array(particles.length * LEGACY_FLOATS);
     const invW = 1 / atlasWidth;
 
     for (let i = 0; i < particles.length; i++) {
       const p = particles[i];
       const g = p.glyph;
-      const off = i * STATIC_FLOATS;
+      const off = i * LEGACY_FLOATS;
 
       data[off] = g.cssW; // size.x
       data[off + 1] = cellHeight; // size.y
@@ -212,13 +270,51 @@ export class WebGLRenderer {
     gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
 
     // Pre-allocate dynamic buffer & reusable typed array
+    const dynBuf = this.dynamicBuf;
+    if (!dynBuf) return;
     this.positionData = new Float32Array(particles.length * 2);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.dynamicBuf);
+    gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf);
     gl.bufferData(
       gl.ARRAY_BUFFER,
       this.positionData.byteLength,
       gl.DYNAMIC_DRAW,
     );
+  }
+
+  // ── Per-instance data (effects) ────────────────────────────────────────────
+
+  uploadEffectsData(
+    particles: EffectsParticle[],
+    atlasWidth: number,
+    cellHeight: number,
+    halfHeight: number,
+  ): void {
+    const gl = this.gl;
+    this.instanceCount = particles.length;
+
+    const data = new Float32Array(particles.length * EFFECTS_FLOATS);
+    const invW = 1 / atlasWidth;
+
+    for (let i = 0; i < particles.length; i++) {
+      const p = particles[i];
+      const g = p.glyph;
+      const off = i * EFFECTS_FLOATS;
+
+      data[off] = p.baseX; // basePosition.x
+      data[off + 1] = p.baseY; // basePosition.y
+      data[off + 2] = g.cssW; // size.x
+      data[off + 3] = cellHeight; // size.y
+      data[off + 4] = g.cssHalfW; // center.x
+      data[off + 5] = halfHeight; // center.y
+      data[off + 6] = g.sx * invW; // u0
+      data[off + 7] = 0; // v0
+      data[off + 8] = (g.sx + g.sw) * invW; // u1
+      data[off + 9] = 1; // v1
+      data[off + 10] = p.opacity; // opacity
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.staticBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
   }
 
   updatePositions(particles: RenderableParticle[]): void {
@@ -228,8 +324,36 @@ export class WebGLRenderer {
       buf[i * 2 + 1] = particles[i].renderY;
     }
     const gl = this.gl;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.dynamicBuf);
+    const dynBuf = this.dynamicBuf;
+    if (!dynBuf) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, dynBuf);
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, buf);
+  }
+
+  // ── Uniforms (effects mode) ────────────────────────────────────────────────
+
+  setTime(t: number): void {
+    const loc = this.uniformLocs.get('u_time');
+    if (loc) {
+      this.gl.useProgram(this.program);
+      this.gl.uniform1f(loc, t);
+    }
+  }
+
+  setResolution(cssW: number, cssH: number): void {
+    const loc = this.uniformLocs.get('u_resolution');
+    if (loc) {
+      this.gl.useProgram(this.program);
+      this.gl.uniform2f(loc, cssW, cssH);
+    }
+  }
+
+  setEffectUniforms(values: Record<string, number>): void {
+    this.gl.useProgram(this.program);
+    for (const [name, value] of Object.entries(values)) {
+      const loc = this.uniformLocs.get(name);
+      if (loc) this.gl.uniform1f(loc, value);
+    }
   }
 
   // ── Draw ──────────────────────────────────────────────────────────────────
@@ -274,6 +398,10 @@ export class WebGLRenderer {
     m[14] = 0;
     m[15] = 1;
     gl.uniformMatrix4fv(this.projectionLoc, false, m);
+
+    if (this.effectsMode) {
+      this.setResolution(cssW, cssH);
+    }
   }
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -285,7 +413,7 @@ export class WebGLRenderer {
     gl.deleteVertexArray(this.vao);
     gl.deleteBuffer(this.quadBuf);
     gl.deleteBuffer(this.staticBuf);
-    gl.deleteBuffer(this.dynamicBuf);
+    if (this.dynamicBuf) gl.deleteBuffer(this.dynamicBuf);
     if (this.texture) gl.deleteTexture(this.texture);
     gl.deleteProgram(this.program);
   }
