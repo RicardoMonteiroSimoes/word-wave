@@ -80,7 +80,9 @@ Runs the vitest test suite. Tests live alongside source files as `*.test.ts` and
 
 ## Benchmarking
 
-Performance benchmarks run against the actual `WordWaveEngine` (with a mocked canvas surface) to measure the JS computation cost of each frame.
+### Computation benchmarks (CI)
+
+Computation benchmarks run against `WordWaveEngine` with a mocked canvas surface (happy-dom) to measure JS frame cost. These run automatically on every PR and post a comparison against `main` as a PR comment.
 
 ```sh
 npm run bench              # run benchmarks
@@ -96,7 +98,15 @@ npm run bench:save         # 1. save baseline on current code
 npm run bench:compare      # 2. compare — shows ops/sec diff per benchmark
 ```
 
-Benchmarks also run automatically on every PR and post a comparison against `main` as a PR comment.
+### Browser benchmarks (local only)
+
+Browser benchmarks run in a real Chromium instance via Playwright and exercise the full WebGL rendering pipeline, including GPU effects scaling. They require a GPU and are too slow for CI's software-rendered WebGL, so they are **not** run in the GitHub Actions workflow.
+
+```sh
+npm run bench:browser
+```
+
+If your PR changes rendering code or GPU effects, please run the browser benchmarks locally and paste the results in your PR description.
 
 ## AI-assisted contributions
 

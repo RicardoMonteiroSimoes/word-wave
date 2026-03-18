@@ -5,6 +5,10 @@ export default defineConfig({
   test: {
     benchmark: {
       exclude: ['src/index.bench.ts'],
+      options: {
+        iterations: 13,
+        warmupIterations: 5,
+      },
     },
     browser: {
       enabled: true,

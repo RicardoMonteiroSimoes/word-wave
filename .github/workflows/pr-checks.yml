@@ -119,6 +119,7 @@ jobs:
           gh pr edit "$PR_NUMBER" --add-reviewer "${{ github.repository_owner }}"
 
   benchmark:
+    needs: checks
     runs-on: ubuntu-latest
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository ||
@@ -136,34 +137,23 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
       - name: Baseline benchmarks (main)
         id: baseline
         continue-on-error: true
         run: npx vitest bench --outputJson /tmp/bench-baseline.json
-      - name: Baseline browser benchmarks (main)
-        id: baseline-browser
-        continue-on-error: true
-        run: npx vitest bench --config vitest.browser.config.ts --outputJson /tmp/bench-browser-baseline.json
 
       # 2. PR branch: checkout and run benchmarks
       - uses: actions/checkout@v4
         with:
           clean: false
       - run: npm ci
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
       - name: PR benchmarks
         id: bench
         run: npx vitest bench --outputJson /tmp/bench-pr.json
-      - name: PR browser benchmarks
-        id: bench-browser
-        run: npx vitest bench --config vitest.browser.config.ts --outputJson /tmp/bench-browser-pr.json
 
       # 3. Build comparison table and post as PR comment
       - name: Post benchmark results
-        if: always() && (steps.bench.outcome == 'success' || steps.bench-browser.outcome == 'success')
+        if: always() && steps.bench.outcome == 'success'
         run: |
           node -e '
           const fs = require("fs");
@@ -223,15 +213,10 @@ jobs:
             ...buildTable("Computation (happy-dom)",
               loadBenches("/tmp/bench-pr.json"),
               loadBenches("/tmp/bench-baseline.json")),
-            "",
-            ...buildTable("Rendering (browser)",
-              loadBenches("/tmp/bench-browser-pr.json"),
-              loadBenches("/tmp/bench-browser-baseline.json")),
           ];
 
           const hasAnyBaseline =
-            loadBenches("/tmp/bench-baseline.json").length > 0 ||
-            loadBenches("/tmp/bench-browser-baseline.json").length > 0;
+            loadBenches("/tmp/bench-baseline.json").length > 0;
 
           const note = hasAnyBaseline
             ? "_~ means within noise (< 2%). Measured on CI — relative changes matter, absolute numbers vary between runs._"
