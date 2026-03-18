@@ -271,6 +271,175 @@
       body[data-theme='dark'] .control-group select {
         border-color: rgba(255, 255, 255, 0.15);
       }
+
+      /* ── Effects builder ── */
+
+      .effects-toolbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+
+      .effects-toolbar select {
+        flex: 1;
+        padding: 4px 8px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        background: transparent;
+        color: inherit;
+      }
+
+      .effects-toolbar button {
+        padding: 4px 10px;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
+        font-size: 13px;
+        font-family: inherit;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+      }
+
+      .effects-toolbar button:hover {
+        background: rgba(0, 0, 0, 0.05);
+      }
+
+      .effect-card {
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        padding: 10px;
+        margin-top: 8px;
+      }
+
+      .effect-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+
+      .effect-card-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        opacity: 0.7;
+        font-weight: 600;
+      }
+
+      .effect-remove-btn {
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        font-size: 14px;
+        line-height: 1;
+        padding: 0;
+      }
+
+      .effect-remove-btn:hover {
+        border-color: rgba(220, 38, 38, 0.4);
+        color: rgb(220, 38, 38);
+        background: rgba(220, 38, 38, 0.06);
+      }
+
+      .glsl-textarea {
+        width: 100%;
+        min-height: 96px;
+        padding: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 6px;
+        font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 12px;
+        background: rgba(0, 0, 0, 0.03);
+        color: inherit;
+        resize: vertical;
+        tab-size: 2;
+      }
+
+      .glsl-params-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+        margin-bottom: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        opacity: 0.6;
+      }
+
+      .glsl-param-row {
+        display: grid;
+        grid-template-columns: 70px 1fr 40px 22px;
+        align-items: center;
+        gap: 4px;
+        margin-top: 4px;
+      }
+
+      .glsl-param-row input[type='text'] {
+        padding: 2px 4px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 4px;
+        font-size: 11px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        background: transparent;
+        color: inherit;
+      }
+
+      .glsl-param-row input[type='range'] {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .glsl-param-row span {
+        font-size: 11px;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.6;
+        text-align: right;
+      }
+
+      /* ── Dark mode: effects builder ── */
+
+      body[data-theme='dark'] .effects-toolbar select,
+      body[data-theme='dark'] .effects-toolbar button {
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+
+      body[data-theme='dark'] .effects-toolbar button:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+
+      body[data-theme='dark'] .effect-card {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      body[data-theme='dark'] .effect-remove-btn {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
+
+      body[data-theme='dark'] .effect-remove-btn:hover {
+        border-color: rgba(248, 113, 113, 0.4);
+        color: rgb(248, 113, 113);
+        background: rgba(248, 113, 113, 0.08);
+      }
+
+      body[data-theme='dark'] .glsl-textarea {
+        border-color: rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      body[data-theme='dark'] .glsl-param-row input[type='text'] {
+        border-color: rgba(255, 255, 255, 0.1);
+      }
     </style>
   </head>
   <body>
@@ -424,7 +593,23 @@
       </details>
 
       <details class="control-section" open>
-        <summary>Wave</summary>
+        <summary>Effects</summary>
+        <div class="section-body">
+          <div class="effects-toolbar">
+            <select id="add-effect-type">
+              <option value="noise">noise</option>
+              <option value="wave">wave</option>
+              <option value="pulse">pulse</option>
+              <option value="glsl">glsl</option>
+            </select>
+            <button id="add-effect-btn">+ Add</button>
+          </div>
+          <div id="effects-list"></div>
+        </div>
+      </details>
+
+      <details class="control-section">
+        <summary>Legacy</summary>
         <div class="section-body">
           <div class="control-group">
             <label>speed <span id="val-speed">0.01</span></label>
