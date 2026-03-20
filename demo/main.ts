@@ -195,21 +195,8 @@ function getOptions(): Partial<WordWaveOptions> {
     (opts as Record<string, number>)[key] = parseFloat(el.value);
   }
 
-  if (effectEntries.length > 0) {
-    opts.effects = buildEffectsArray();
-  } else {
-    for (const id of [
-      'speed',
-      'frequency',
-      'amplitude',
-      'waveAmplitude',
-      'direction',
-      'propagation',
-    ]) {
-      const el = document.getElementById(`opt-${id}`) as HTMLInputElement;
-      (opts as Record<string, number>)[id] = parseFloat(el.value);
-    }
-  }
+  const effects = buildEffectsArray();
+  opts.effects = effects.length > 0 ? effects : [...DEFAULT_EFFECTS];
 
   return opts;
 }
@@ -467,24 +454,6 @@ for (const id of Object.keys(layoutSliders)) {
   });
 }
 
-// ── Wiring: legacy sliders ──────────────────────────────────────────────────
-
-for (const id of [
-  'speed',
-  'frequency',
-  'amplitude',
-  'waveAmplitude',
-  'direction',
-  'propagation',
-]) {
-  const input = document.getElementById(`opt-${id}`) as HTMLInputElement;
-  const display = document.getElementById(`val-${id}`) as HTMLSpanElement;
-  input.addEventListener('input', () => {
-    display.textContent = input.value;
-    debouncedRecreate();
-  });
-}
-
 // ── Wiring: color/opacity/text/mode ─────────────────────────────────────────
 
 for (const id of ['color-light', 'color-dark']) {
@@ -650,7 +619,30 @@ const copyBtn = document.getElementById('copy-btn') as HTMLButtonElement;
 const copyIconSvg = copyBtn.innerHTML;
 const checkSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
 
-copyBtn.addEventListener('click', () => {
+function buildExportSnippet(): string {
+  const opts = getOptions();
+  delete opts.respectReducedMotion;
+  delete opts.pauseOffScreen;
+
+  const wordsStr = (opts.words ?? []).map((w) => `'${w}'`).join(', ');
+  const effectLines = (opts.effects ?? []).map((fx) => {
+    if (fx.type === 'glsl') {
+      const parts: string[] = [`type: 'glsl'`];
+      if (fx.code) parts.push(`code: \`${fx.code}\``);
+      if (fx.params && Object.keys(fx.params).length > 0) {
+        const p = Object.entries(fx.params)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(', ');
+        parts.push(`params: { ${p} }`);
+      }
+      return `    { ${parts.join(', ')} },`;
+    }
+    const entries = Object.entries(fx)
+      .map(([k, v]) => (k === 'type' ? `type: '${v}'` : `${k}: ${v}`))
+      .join(', ');
+    return `    { ${entries} },`;
+  });
+
   const colorLight = (
     document.getElementById('opt-color-light') as HTMLInputElement
   ).value;
@@ -663,29 +655,43 @@ copyBtn.addEventListener('click', () => {
   const opacityDark = (
     document.getElementById('opt-opacity-dark') as HTMLInputElement
   ).value;
-  const bgLight = (document.getElementById('opt-bg-light') as HTMLInputElement)
-    .value;
-  const bgDark = (document.getElementById('opt-bg-dark') as HTMLInputElement)
-    .value;
 
-  const output = {
-    options: getOptions(),
-    css: {
-      light: {
-        background: bgLight,
-        '--word-wave-color': colorLight,
-        '--word-wave-opacity': opacityLight,
-      },
-      dark: {
-        background: bgDark,
-        '--word-wave-color': colorDark,
-        '--word-wave-opacity': opacityDark,
-      },
-    },
-  };
+  const js = [
+    `import { WordWaveEngine } from 'word-wave';`,
+    ``,
+    `const canvas = document.getElementById('wave') as HTMLCanvasElement;`,
+    `const engine = new WordWaveEngine(canvas, {`,
+    `  words: [${wordsStr}],`,
+    `  font: '${opts.font}',`,
+    `  mode: '${opts.mode}',`,
+    `  spacingX: ${opts.spacingX},`,
+    `  spacingY: ${opts.spacingY},`,
+    `  effects: [`,
+    ...effectLines,
+    `  ],`,
+    `});`,
+  ].join('\n');
 
-  const json = JSON.stringify(output, null, 2);
-  navigator.clipboard.writeText(json).then(
+  const css = [
+    `/* Light theme */`,
+    `canvas {`,
+    `  --word-wave-color: ${colorLight};`,
+    `  --word-wave-opacity: ${opacityLight};`,
+    `}`,
+    `/* Dark theme */`,
+    `@media (prefers-color-scheme: dark) {`,
+    `  canvas {`,
+    `    --word-wave-color: ${colorDark};`,
+    `    --word-wave-opacity: ${opacityDark};`,
+    `  }`,
+    `}`,
+  ].join('\n');
+
+  return js + '\n\n' + css;
+}
+
+copyBtn.addEventListener('click', () => {
+  navigator.clipboard.writeText(buildExportSnippet()).then(
     () => {
       copyBtn.innerHTML = checkSvg;
       setTimeout(() => {
