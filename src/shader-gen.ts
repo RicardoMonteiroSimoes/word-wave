@@ -177,9 +177,31 @@ const FORBIDDEN_ASSIGNMENTS = [
   { pattern: /\bgl_\w+\s*(\.\w+)?\s*[-+*\/]?=/, name: 'gl_* built-in' },
 ];
 
+/** Strip GLSL comments so they cannot hide forbidden patterns. */
+function stripGlslComments(code: string): string {
+  // Block comments (/* ... */), then line comments (// ...)
+  return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+}
+
 export function validateGlslCode(code: string): void {
+  const stripped = stripGlslComments(code);
+
+  // Detect scope escapes: if brace depth ever goes negative, the user code
+  // is closing the wrapper `{ }` block and escaping into the outer scope.
+  let depth = 0;
+  for (const ch of stripped) {
+    if (ch === '{') depth++;
+    else if (ch === '}') depth--;
+    if (depth < 0) {
+      throw new Error(
+        'Custom GLSL code must not contain unbalanced braces. ' +
+          'Write to "d" (vec2) instead of escaping the effect scope.',
+      );
+    }
+  }
+
   for (const { pattern, name } of FORBIDDEN_ASSIGNMENTS) {
-    if (pattern.test(code)) {
+    if (pattern.test(stripped)) {
       throw new Error(
         `Custom GLSL code must not assign to "${name}". ` +
           `Write to "d" (vec2) instead.`,
@@ -231,11 +253,8 @@ export function generateShaders(effects: Effect[]): GeneratedShader {
     'u_resolution',
     'u_projection',
     'u_atlas',
-    'time',
-    'pos',
-    'd',
-    'displacement',
   ]);
+  const reservedShaderVars = new Set(['time', 'pos', 'd', 'displacement']);
   const allUniforms = ['u_time', 'u_resolution'];
   const uniformDecls: string[] = [
     'uniform float u_time;',
@@ -248,7 +267,13 @@ export function generateShaders(effects: Effect[]): GeneratedShader {
       if (reservedUniforms.has(name)) {
         throw new Error(
           `Effect uniform "${name}" collides with a built-in uniform. ` +
-            `Reserved names: ${[...reservedUniforms].join(', ')}`,
+            `Reserved uniforms: ${[...reservedUniforms].join(', ')}`,
+        );
+      }
+      if (reservedShaderVars.has(name)) {
+        throw new Error(
+          `Effect uniform "${name}" collides with a shader variable. ` +
+            `Reserved variable names: ${[...reservedShaderVars].join(', ')}`,
         );
       }
       if (seen.has(name)) {

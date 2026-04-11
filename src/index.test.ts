@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WordWaveEngine, DEFAULT_WORDS } from './index';
 import { createCanvas } from './test-utils';
-import { generateShaders, extractUniformValues } from './shader-gen';
+import {
+  generateShaders,
+  extractUniformValues,
+  validateGlslCode,
+} from './shader-gen';
 import {
   type Effect,
   NOISE_DEFAULTS,
@@ -216,6 +220,33 @@ describe('WordWaveEngine', () => {
   });
 });
 
+describe('validateGlslCode', () => {
+  it('strips block comments before checking forbidden assignments', () => {
+    // Without stripping, the /**/ would hide the assignment from the regex
+    expect(() => validateGlslCode('displacement/**/+= vec2(1.0);')).toThrow(
+      /displacement/,
+    );
+  });
+
+  it('strips line comments before checking forbidden assignments', () => {
+    expect(() =>
+      validateGlslCode('// comment\ngl_Position = vec4(0.0);'),
+    ).toThrow(/gl_/);
+  });
+
+  it('rejects code with more closing braces than opening', () => {
+    expect(() => validateGlslCode('} gl_Position = vec4(0.0); {')).toThrow(
+      /unbalanced braces/,
+    );
+  });
+
+  it('accepts valid code that only writes to d', () => {
+    expect(() =>
+      validateGlslCode('d = vec2(sin(pos.x * 0.01), 0.0);'),
+    ).not.toThrow();
+  });
+});
+
 describe('Effects system: shader generation', () => {
   describe('generateShaders', () => {
     it('includes snoise in vertex source when noise effect is present', () => {
@@ -303,7 +334,7 @@ describe('Effects system: shader generation', () => {
         { type: 'glsl', params: { time: 1.0 }, code: 'd = vec2(0.0);' },
       ];
       expect(() => generateShaders(effects)).toThrow(
-        /collides with a built-in uniform/,
+        /collides with a shader variable/,
       );
     });
 
@@ -312,7 +343,7 @@ describe('Effects system: shader generation', () => {
         { type: 'glsl', params: { displacement: 1.0 }, code: 'd = vec2(0.0);' },
       ];
       expect(() => generateShaders(effects)).toThrow(
-        /collides with a built-in uniform/,
+        /collides with a shader variable/,
       );
     });
 
@@ -347,6 +378,47 @@ describe('Effects system: shader generation', () => {
     it('allows reading pos and displacement in glsl code', () => {
       const effects: Effect[] = [
         { type: 'glsl', code: 'd = vec2(pos.x * 0.01, displacement.y * 0.5);' },
+      ];
+      expect(() => generateShaders(effects)).not.toThrow();
+    });
+
+    it('detects forbidden assignments hidden inside block comments', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'displacement/**/+= vec2(999.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/displacement/);
+    });
+
+    it('detects forbidden assignments hidden after line comments', () => {
+      const effects: Effect[] = [
+        {
+          type: 'glsl',
+          code: '// harmless\npos = vec2(0.0); d = vec2(0.0);',
+        },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/pos/);
+    });
+
+    it('allows code with comments that do not hide forbidden patterns', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: '/* shift x */ d = vec2(1.0, 0.0);' },
+      ];
+      expect(() => generateShaders(effects)).not.toThrow();
+    });
+
+    it('throws when glsl code escapes the scope with unbalanced braces', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: '} vec2 hack = vec2(0.0); {' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/unbalanced braces/);
+    });
+
+    it('allows balanced braces inside glsl code', () => {
+      const effects: Effect[] = [
+        {
+          type: 'glsl',
+          code: 'if (pos.x > 0.0) { d = vec2(1.0, 0.0); }',
+        },
       ];
       expect(() => generateShaders(effects)).not.toThrow();
     });
