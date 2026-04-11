@@ -68,7 +68,7 @@ All fields are optional. Unspecified fields use sensible defaults.
 
 ## Effects
 
-Effects move displacement computation to the GPU vertex shader, enabling more complex visual patterns without CPU overhead. They compose additively: each effect contributes a displacement that is summed together. When `effects` is provided, the legacy displacement parameters (`frequency`, `amplitude`, `direction`, etc.) are ignored.
+Effects move displacement computation to the GPU vertex shader, enabling more complex visual patterns without CPU overhead. They compose additively: each effect contributes a displacement that is summed together. When `effects` is provided, the legacy displacement parameters (`frequency`, `amplitude`, `direction`, `propagation`, `waveAmplitude`) are ignored. The top-level `speed` option is **not** ignored — it acts as a global time scale that multiplies the animation rate of all effects uniformly.
 
 ### Basic usage
 
@@ -77,6 +77,19 @@ Omitting `effects` preserves the existing CPU-based behavior. To use GPU effects
 ```ts
 const engine = new WordWaveEngine(canvas, {
   words: ['hello', 'world'],
+  effects: [
+    { type: 'noise', frequency: 0.008, amplitude: 10 },
+    { type: 'wave', direction: 225, propagation: 0.03, amplitude: 15 },
+  ],
+});
+```
+
+The `speed` option scales the time increment for every effect on every frame. Doubling it makes all effects animate twice as fast:
+
+```ts
+const engine = new WordWaveEngine(canvas, {
+  words: ['hello', 'world'],
+  speed: 0.02, // global time scale — affects all effects uniformly
   effects: [
     { type: 'noise', frequency: 0.008, amplitude: 10 },
     { type: 'wave', direction: 225, propagation: 0.03, amplitude: 15 },

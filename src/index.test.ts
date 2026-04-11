@@ -298,6 +298,59 @@ describe('Effects system: shader generation', () => {
       );
     });
 
+    it('throws when glsl param uses shader-scoped variable name "time"', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', params: { time: 1.0 }, code: 'd = vec2(0.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(
+        /collides with a built-in uniform/,
+      );
+    });
+
+    it('throws when glsl param uses shader-scoped variable name "displacement"', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', params: { displacement: 1.0 }, code: 'd = vec2(0.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(
+        /collides with a built-in uniform/,
+      );
+    });
+
+    it('throws when glsl code assigns to pos', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'pos = vec2(0.0); d = vec2(0.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/pos/);
+    });
+
+    it('throws when glsl code assigns to pos component', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'pos.x = 0.0; d = vec2(0.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/pos/);
+    });
+
+    it('throws when glsl code assigns to displacement', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'displacement += vec2(1.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/displacement/);
+    });
+
+    it('throws when glsl code assigns to gl_Position', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'gl_Position = vec4(0.0); d = vec2(0.0);' },
+      ];
+      expect(() => generateShaders(effects)).toThrow(/gl_/);
+    });
+
+    it('allows reading pos and displacement in glsl code', () => {
+      const effects: Effect[] = [
+        { type: 'glsl', code: 'd = vec2(pos.x * 0.01, displacement.y * 0.5);' },
+      ];
+      expect(() => generateShaders(effects)).not.toThrow();
+    });
+
     it('throws when two glsl effects declare the same param name', () => {
       const effects: Effect[] = [
         { type: 'glsl', params: { u_freq: 0.05 }, code: 'd = vec2(0.0);' },

@@ -171,7 +171,25 @@ function pulseBlock(i: number): EffectBlock {
   };
 }
 
+const FORBIDDEN_ASSIGNMENTS = [
+  { pattern: /\bpos\s*(\.\w+)?\s*[-+*\/]?=/, name: 'pos' },
+  { pattern: /\bdisplacement\s*(\.\w+)?\s*[-+*\/]?=/, name: 'displacement' },
+  { pattern: /\bgl_\w+\s*(\.\w+)?\s*[-+*\/]?=/, name: 'gl_* built-in' },
+];
+
+export function validateGlslCode(code: string): void {
+  for (const { pattern, name } of FORBIDDEN_ASSIGNMENTS) {
+    if (pattern.test(code)) {
+      throw new Error(
+        `Custom GLSL code must not assign to "${name}". ` +
+          `Write to "d" (vec2) instead.`,
+      );
+    }
+  }
+}
+
 function glslBlock(effect: GlslEffect, i: number): EffectBlock {
+  validateGlslCode(effect.code);
   const uniforms = Object.keys(effect.params ?? {});
   return {
     uniforms,
@@ -213,6 +231,10 @@ export function generateShaders(effects: Effect[]): GeneratedShader {
     'u_resolution',
     'u_projection',
     'u_atlas',
+    'time',
+    'pos',
+    'd',
+    'displacement',
   ]);
   const allUniforms = ['u_time', 'u_resolution'];
   const uniformDecls: string[] = [

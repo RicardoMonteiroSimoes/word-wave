@@ -173,6 +173,7 @@ function applyColorScheme(): void {
 const layoutSliders: Record<string, keyof WordWaveOptions> = {
   spacingX: 'spacingX',
   spacingY: 'spacingY',
+  speed: 'speed',
 };
 
 function getOptions(): Partial<WordWaveOptions> {
@@ -666,6 +667,9 @@ function buildExportSnippet(): string {
     `  mode: '${opts.mode}',`,
     `  spacingX: ${opts.spacingX},`,
     `  spacingY: ${opts.spacingY},`,
+    ...(opts.speed !== undefined && opts.speed !== 0.01
+      ? [`  speed: ${opts.speed},`]
+      : []),
     `  effects: [`,
     ...effectLines,
     `  ],`,
