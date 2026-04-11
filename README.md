@@ -150,7 +150,9 @@ const engine = new WordWaveEngine(canvas, {
 
 ### Custom GLSL
 
-The `glsl` effect type allows arbitrary vertex shader displacement code. Your snippet receives:
+The `glsl` effect type allows arbitrary vertex shader displacement code. The code is injected into the vertex shader **without validation** — GLSL runs in the browser's GPU sandbox, so there is no security boundary to enforce. You are responsible for writing correct shader code.
+
+Your snippet receives:
 
 - `pos` (vec2) — particle base position in CSS pixels
 - `time` (float) — elapsed time

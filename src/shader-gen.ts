@@ -171,47 +171,7 @@ function pulseBlock(i: number): EffectBlock {
   };
 }
 
-const FORBIDDEN_ASSIGNMENTS = [
-  { pattern: /\bpos\s*(\.\w+)?\s*[-+*\/]?=/, name: 'pos' },
-  { pattern: /\bdisplacement\s*(\.\w+)?\s*[-+*\/]?=/, name: 'displacement' },
-  { pattern: /\bgl_\w+\s*(\.\w+)?\s*[-+*\/]?=/, name: 'gl_* built-in' },
-];
-
-/** Strip GLSL comments so they cannot hide forbidden patterns. */
-function stripGlslComments(code: string): string {
-  // Block comments (/* ... */), then line comments (// ...)
-  return code.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
-}
-
-export function validateGlslCode(code: string): void {
-  const stripped = stripGlslComments(code);
-
-  // Detect scope escapes: if brace depth ever goes negative, the user code
-  // is closing the wrapper `{ }` block and escaping into the outer scope.
-  let depth = 0;
-  for (const ch of stripped) {
-    if (ch === '{') depth++;
-    else if (ch === '}') depth--;
-    if (depth < 0) {
-      throw new Error(
-        'Custom GLSL code must not contain unbalanced braces. ' +
-          'Write to "d" (vec2) instead of escaping the effect scope.',
-      );
-    }
-  }
-
-  for (const { pattern, name } of FORBIDDEN_ASSIGNMENTS) {
-    if (pattern.test(stripped)) {
-      throw new Error(
-        `Custom GLSL code must not assign to "${name}". ` +
-          `Write to "d" (vec2) instead.`,
-      );
-    }
-  }
-}
-
 function glslBlock(effect: GlslEffect, i: number): EffectBlock {
-  validateGlslCode(effect.code);
   const uniforms = Object.keys(effect.params ?? {});
   return {
     uniforms,
