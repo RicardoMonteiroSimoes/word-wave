@@ -177,7 +177,7 @@ describe('WordWaveEngine', () => {
         {
           type: 'glsl',
           params: { u_freq: 0.05, u_amp: 12.0 },
-          code: 'd = vec2(sin(pos.x * u_freq + u_time) * u_amp, 0.0);',
+          code: 'd = vec2(sin(pos.x * u_freq + time) * u_amp, 0.0);',
         },
       ];
       expect(() => {
