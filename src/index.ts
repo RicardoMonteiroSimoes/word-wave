@@ -361,8 +361,13 @@ export class WordWaveEngine {
           this.renderer = new WebGLRenderer(this.canvas, generated);
           this.effectUniformValues = extractUniformValues(effects);
         } catch (shaderErr) {
-          // Shader compilation failed — fall back to legacy WebGL (not null,
-          // because the canvas context is already locked to webgl2).
+          // Shader compilation failed — destroy the partially-initialised
+          // renderer to avoid leaking GPU resources, then fall back to legacy
+          // WebGL (not null, because the canvas context is already locked to webgl2).
+          if (this.renderer) {
+            this.renderer.destroy();
+            this.renderer = null;
+          }
           console.warn(
             'word-wave: effects shader failed, falling back to legacy rendering',
             shaderErr,
