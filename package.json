@@ -1,6 +1,6 @@
 {
   "name": "word-wave",
-  "version": "2.0.0",
+  "version": "0.0.0",
   "description": "High-performance canvas text wave animation driven by simplex noise",
   "type": "module",
   "main": "./dist/index.js",
