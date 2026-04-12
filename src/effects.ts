@@ -13,7 +13,7 @@ export interface NoiseEffect {
   frequency?: number;
   /** Maximum displacement in CSS pixels. @default 10 */
   amplitude?: number;
-  /** Time evolution rate. @default 0.01 */
+  /** Time evolution rate. @default 1.0 */
   speed?: number;
   /** Y-axis amplitude multiplier (relative to X). @default 0.6 */
   yScale?: number;
@@ -88,7 +88,7 @@ export type Effect = NoiseEffect | WaveEffect | PulseEffect | GlslEffect;
 export const NOISE_DEFAULTS = {
   frequency: 0.008,
   amplitude: 10,
-  speed: 0.01,
+  speed: 1.0,
   yScale: 0.6,
 } as const;
 
@@ -108,4 +108,4 @@ export const PULSE_DEFAULTS = {
 } as const;
 
 /** Default effects matching the legacy CPU displacement behavior. */
-export const DEFAULT_EFFECTS: Effect[] = [{ type: 'noise' }, { type: 'wave' }];
+export const DEFAULT_EFFECTS: readonly Effect[] = [{ type: 'noise' }, { type: 'wave' }];

@@ -424,6 +424,8 @@ export class WebGLRenderer {
     if (this.dynamicBuf) gl.deleteBuffer(this.dynamicBuf);
     if (this.texture) gl.deleteTexture(this.texture);
     gl.deleteProgram(this.program);
+    gl.bindVertexArray(null);
+    gl.useProgram(null);
   }
 }
 
