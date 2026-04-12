@@ -108,4 +108,7 @@ export const PULSE_DEFAULTS = {
 } as const;
 
 /** Default effects matching the legacy CPU displacement behavior. */
-export const DEFAULT_EFFECTS: readonly Effect[] = [{ type: 'noise' }, { type: 'wave' }];
+export const DEFAULT_EFFECTS: readonly Effect[] = [
+  { type: 'noise' },
+  { type: 'wave' },
+];
